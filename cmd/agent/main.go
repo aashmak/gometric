@@ -9,7 +9,7 @@ func main() {
 	m := metric.RunCollector(2)
 
 	collector := metric.Collector{
-		Endpoint:          "http://172.17.0.3:80/update",
+		Endpoint:          "http://127.0.0.1:8080/update",
 		ReportIntervalSec: 10,
 	}
 
