@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -53,6 +54,20 @@ func TestStorage4(t *testing.T) {
 	}
 
 	if v, _ := mem_stor.Get("abc"); v != "abc" {
+		t.Errorf("Error: value is incorrect")
+	}
+}
+
+func TestStorage5(t *testing.T) {
+	mem_stor := NewMemStorage()
+
+	mem_stor.Set("xyz", "abc")
+	mem_stor.Set("abc", "abc")
+	mem_stor.Set("def", int(1))
+
+	a := []string{"abc", "def", "xyz"}
+	b := mem_stor.List()
+	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Error: value is incorrect")
 	}
 }

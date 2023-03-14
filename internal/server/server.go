@@ -1,22 +1,27 @@
 package server
 
 import (
+	"fmt"
 	"internal/storage"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type gauge float64
 type counter int64
 
 type Server struct {
-	Storage *storage.MemStorage
+	chiRouter chi.Router
+	Storage   *storage.MemStorage
 }
 
 func NewServer() *Server {
 	return &Server{
-		Storage: storage.NewMemStorage(),
+		Storage:   storage.NewMemStorage(),
+		chiRouter: chi.NewRouter(),
 	}
 }
 
@@ -25,19 +30,62 @@ func (s Server) defaultHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (s Server) UpdateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+func (s Server) listHandler(w http.ResponseWriter, r *http.Request) {
+	var varList string
+
+	for _, metricName := range s.Storage.List() {
+		v, err := s.Storage.Get(metricName)
+		if err == nil {
+			if gaugeType(v) {
+				varList += fmt.Sprintf("%s (type: gauge): %f<br>\n", metricName, v.(gauge))
+			} else if counterType(v) {
+				varList += fmt.Sprintf("%s (type: counter): %d<br>\n", metricName, v.(counter))
+			}
+		}
 	}
 
-	paths := strings.Split(r.URL.Path, "/")
+	fmt.Fprintf(w, "<html>\n<title>Metric Dump</title>\n"+
+		"<body>\n<h2>Metric Dump</h2>\n"+
+		"%s\n"+
+		"</body>\n</html>", varList)
+}
 
-	if len(paths) == 5 {
+func (s Server) GetValueHandler(w http.ResponseWriter, r *http.Request) {
+	paths := strings.Split(r.URL.Path, "/")
+	l := len(paths)
+
+	if l >= 2 {
+		var metricType, metricName string
+		metricType, metricName = paths[(l-2)], paths[(l-1)]
+
+		v, err := s.Storage.Get(metricName)
+		if err == nil {
+			switch metricType {
+			case "gauge":
+				if gaugeType(v) {
+					w.Write([]byte(fmt.Sprintf("%f", v.(gauge))))
+					return
+				}
+			case "counter":
+				if counterType(v) {
+					w.Write([]byte(fmt.Sprintf("%d", v.(counter))))
+					return
+				}
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusNotFound)
+	return
+}
+
+func (s Server) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	paths := strings.Split(r.URL.Path, "/")
+	l := len(paths)
+
+	if l >= 3 {
 		var metricType, metricName, metricValue string
-		metricType = paths[2]
-		metricName = paths[3]
-		metricValue = paths[4]
+		metricType, metricName, metricValue = paths[(l-3)], paths[(l-2)], paths[(l-1)]
 
 		switch metricType {
 		case "gauge":
@@ -69,7 +117,29 @@ func (s Server) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s Server) ListenAndServe(addr string) {
-	http.HandleFunc("/update/", s.UpdateHandler)
-	http.HandleFunc("/", s.defaultHandler)
-	http.ListenAndServe(addr, nil)
+	//router := chi.NewRouter()
+	s.chiRouter.Route("/", func(router chi.Router) {
+		s.chiRouter.Get("/", s.listHandler)
+		s.chiRouter.Get("/value/{metricType}/{metricName}", s.GetValueHandler)
+		s.chiRouter.Post("/update/{metricType}/{metricName}/{metricValue}", s.UpdateHandler)
+	})
+	http.ListenAndServe(addr, s.chiRouter)
+}
+
+func getObjectType(i interface{}) string {
+	return fmt.Sprintf("%T", i)
+}
+
+func gaugeType(i interface{}) bool {
+	if getObjectType(i) == "server.gauge" {
+		return true
+	}
+	return false
+}
+
+func counterType(i interface{}) bool {
+	if getObjectType(i) == "server.counter" {
+		return true
+	}
+	return false
 }

@@ -3,11 +3,9 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 )
-
-type gauge float64
-type counter int64
 
 type MemStorage struct {
 	Mutex   sync.Mutex
@@ -40,4 +38,18 @@ func (m *MemStorage) Get(k string) (interface{}, error) {
 	}
 
 	return m.Metrics[k], nil
+}
+
+func (m *MemStorage) List() []string {
+	var s []string
+
+	m.Mutex.Lock()
+	defer m.Mutex.Unlock()
+
+	for k, _ := range m.Metrics {
+		s = append(s, k)
+	}
+
+	sort.Strings(s)
+	return s
 }
