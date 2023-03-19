@@ -34,7 +34,8 @@ func TestVariableType(t *testing.T) {
 func TestChiRouter(t *testing.T) {
 	s := NewServer()
 	s.chiRouter.Route("/", func(router chi.Router) {
-		s.chiRouter.Get("/", s.defaultHandler)
+		s.chiRouter.Get("/", s.listHandler)
+		s.chiRouter.Post("/", s.defaultHandler)
 		s.chiRouter.Get("/value/{metricType}/{metricName}", s.GetValueHandler)
 		s.chiRouter.Post("/update/{metricType}/{metricName}/{metricValue}", s.UpdateHandler)
 	})
@@ -42,7 +43,12 @@ func TestChiRouter(t *testing.T) {
 	ts := httptest.NewServer(s.chiRouter)
 	defer ts.Close()
 
-	statusCode, body := testRequest(t, ts, "POST", "/")
+	statusCode, body := testRequest(t, ts, "GET", "/")
+	if statusCode != http.StatusOK {
+		t.Errorf("Error")
+	}
+
+	statusCode, body = testRequest(t, ts, "POST", "/")
 	if statusCode != http.StatusForbidden {
 		t.Errorf("Error")
 	}

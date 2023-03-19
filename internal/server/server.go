@@ -1,11 +1,14 @@
 package server
 
 import (
+	"context"
 	"fmt"
-	"internal/storage"
+	"gometric/internal/storage"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -13,24 +16,25 @@ import (
 type gauge float64
 type counter int64
 
-type Server struct {
+type HTTPServer struct {
+	Server    *http.Server
 	chiRouter chi.Router
-	Storage   *storage.MemStorage
+	Storage   storage.Storage
 }
 
-func NewServer() *Server {
-	return &Server{
-		Storage:   storage.NewMemStorage(),
+func NewServer() *HTTPServer {
+	return &HTTPServer{
+		Storage:   storage.New(),
 		chiRouter: chi.NewRouter(),
 	}
 }
 
-func (s Server) defaultHandler(w http.ResponseWriter, r *http.Request) {
+func (s HTTPServer) defaultHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 	return
 }
 
-func (s Server) listHandler(w http.ResponseWriter, r *http.Request) {
+func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 	var varList string
 
 	for _, metricName := range s.Storage.List() {
@@ -50,7 +54,7 @@ func (s Server) listHandler(w http.ResponseWriter, r *http.Request) {
 		"</body>\n</html>", varList)
 }
 
-func (s Server) GetValueHandler(w http.ResponseWriter, r *http.Request) {
+func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 	paths := strings.Split(r.URL.Path, "/")
 	l := len(paths)
 
@@ -79,7 +83,7 @@ func (s Server) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (s Server) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	paths := strings.Split(r.URL.Path, "/")
 	l := len(paths)
 
@@ -116,30 +120,30 @@ func (s Server) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (s Server) ListenAndServe(addr string) {
-	//router := chi.NewRouter()
+func (s *HTTPServer) ListenAndServe(addr string) {
+
 	s.chiRouter.Route("/", func(router chi.Router) {
 		s.chiRouter.Get("/", s.listHandler)
+		s.chiRouter.Post("/", s.defaultHandler)
 		s.chiRouter.Get("/value/{metricType}/{metricName}", s.GetValueHandler)
 		s.chiRouter.Post("/update/{metricType}/{metricName}/{metricValue}", s.UpdateHandler)
 	})
-	http.ListenAndServe(addr, s.chiRouter)
-}
 
-func getObjectType(i interface{}) string {
-	return fmt.Sprintf("%T", i)
-}
-
-func gaugeType(i interface{}) bool {
-	if getObjectType(i) == "server.gauge" {
-		return true
+	s.Server = &http.Server{
+		Addr:    addr,
+		Handler: s.chiRouter,
 	}
-	return false
+
+	if err := s.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("listen: %s\n", err)
+	}
 }
 
-func counterType(i interface{}) bool {
-	if getObjectType(i) == "server.counter" {
-		return true
+func (s *HTTPServer) Shutdown() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.Server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server Shutdown Failed:%+v", err)
 	}
-	return false
 }

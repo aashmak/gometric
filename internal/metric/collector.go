@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 )
@@ -35,40 +36,54 @@ func (c *Collector) RegisterMetric(name string, value interface{}) error {
 	return nil
 }
 
-func (c *Collector) SendMetric() {
+func (c *Collector) SendMetric(ctx context.Context) {
+
 	var interval = time.Duration(c.ReportIntervalSec) * time.Second
 	client := &http.Client{}
 
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), interval)
+		ctx_SendMetric, cancel := context.WithTimeout(ctx, interval)
 		defer cancel()
 
 		select {
-		case <-ctx.Done():
+		case <-ctx_SendMetric.Done():
 			continue
+		case <-ctx.Done():
+			log.Print("SendMetric stopped")
+			return
 
 		default:
 			go func() {
+				var url string
+
 				for key, value := range c.Metrics {
 					switch c.Metrics[key].(type) {
 					case *counter:
-						url := fmt.Sprintf("%s/counter/%s/%d", c.Endpoint, key, *value.(*counter))
-						MakeRequest(ctx, client, url)
+						url = fmt.Sprintf("%s/counter/%s/%d", c.Endpoint, key, *value.(*counter))
 					case *gauge:
-						url := fmt.Sprintf("%s/gauge/%s/%.4f", c.Endpoint, key, *value.(*gauge))
-						MakeRequest(ctx, client, url)
+						url = fmt.Sprintf("%s/gauge/%s/%.4f", c.Endpoint, key, *value.(*gauge))
+					default:
+						continue
+					}
+
+					err := MakeRequest(ctx_SendMetric, client, url)
+					if err != nil {
+						log.Printf("Http request error: %s", err.Error())
 					}
 				}
 			}()
 		}
 
 		<-time.After(interval)
-		cancel()
 	}
 }
 
 func MakeRequest(ctx context.Context, client *http.Client, url string) error {
-	request, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return errors.New(fmt.Sprintf("New request error: %s", err.Error()))
+	}
+
 	request.Header.Add("Content-Type", "text/plain")
 
 	response, err := client.Do(request)
@@ -78,7 +93,7 @@ func MakeRequest(ctx context.Context, client *http.Client, url string) error {
 	defer response.Body.Close()
 
 	if response.StatusCode != 200 {
-		return nil
+		return errors.New(fmt.Sprintf("The request was not executed successfully."))
 	}
 
 	return nil
