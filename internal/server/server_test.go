@@ -43,12 +43,12 @@ func TestChiRouter(t *testing.T) {
 	ts := httptest.NewServer(s.chiRouter)
 	defer ts.Close()
 
-	statusCode, body := testRequest(t, ts, "GET", "/")
+	statusCode, _ := testRequest(t, ts, "GET", "/")
 	if statusCode != http.StatusOK {
 		t.Errorf("Error")
 	}
 
-	statusCode, body = testRequest(t, ts, "POST", "/")
+	statusCode, _ = testRequest(t, ts, "POST", "/")
 	if statusCode != http.StatusForbidden {
 		t.Errorf("Error")
 	}
@@ -63,7 +63,7 @@ func TestChiRouter(t *testing.T) {
 		t.Errorf("Error")
 	}
 
-	statusCode, body = testRequest(t, ts, "GET", "/value/counter/PollCount")
+	statusCode, body := testRequest(t, ts, "GET", "/value/counter/PollCount")
 	if statusCode != http.StatusOK || body != "3" {
 		t.Errorf("Error")
 	}

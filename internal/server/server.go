@@ -31,7 +31,6 @@ func NewServer() *HTTPServer {
 
 func (s HTTPServer) defaultHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
-	return
 }
 
 func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +79,6 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNotFound)
-	return
 }
 
 func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
@@ -102,11 +100,11 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 			c, _ := strconv.ParseInt(metricValue, 0, 64)
 
 			// get previous counter value
-			prev_counter, err := s.Storage.Get(metricName)
+			prevCounter, err := s.Storage.Get(metricName)
 			if err != nil {
-				prev_counter = counter(0)
+				prevCounter = counter(0)
 			}
-			err = s.Storage.Set(metricName, counter(c)+prev_counter.(counter))
+			err = s.Storage.Set(metricName, counter(c)+prevCounter.(counter))
 			if err != nil {
 				w.WriteHeader(http.StatusForbidden)
 			}
@@ -117,7 +115,6 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusForbidden)
-	return
 }
 
 func (s *HTTPServer) ListenAndServe(addr string) {

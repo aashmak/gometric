@@ -1,7 +1,6 @@
 package memstorage
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -32,7 +31,7 @@ func (m *MemStorage) Get(k string) (interface{}, error) {
 	defer m.Mutex.Unlock()
 
 	if v, ok := m.Metrics[k]; !ok {
-		return nil, errors.New(fmt.Sprintf("Metric %s not found", k))
+		return nil, fmt.Errorf("metric %s not found", k)
 	} else if v == nil {
 		return 0, nil
 	}

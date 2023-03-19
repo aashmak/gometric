@@ -7,15 +7,9 @@ func getObjectType(i interface{}) string {
 }
 
 func gaugeType(i interface{}) bool {
-	if getObjectType(i) == "server.gauge" {
-		return true
-	}
-	return false
+	return getObjectType(i) == "server.gauge"
 }
 
 func counterType(i interface{}) bool {
-	if getObjectType(i) == "server.counter" {
-		return true
-	}
-	return false
+	return getObjectType(i) == "server.counter"
 }
