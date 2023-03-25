@@ -71,3 +71,12 @@ func TestStorage5(t *testing.T) {
 		t.Errorf("Error: value is incorrect")
 	}
 }
+
+func TestStorage6(t *testing.T) {
+	memStor := NewMemStorage()
+
+	err := memStor.Set("abc", nil)
+	if err == nil {
+		t.Errorf("Error: %s", err)
+	}
+}
