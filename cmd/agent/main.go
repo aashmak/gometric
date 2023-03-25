@@ -17,7 +17,7 @@ func main() {
 	m := metric.RunCollector(ctx, 2)
 
 	collector := metric.Collector{
-		Endpoint:          "http://127.0.0.1:8081/update",
+		Endpoint:          "http://127.0.0.1:8081/update/",
 		ReportIntervalSec: 10,
 	}
 
