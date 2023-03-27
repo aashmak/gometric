@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gometric/internal/storage"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -63,7 +63,7 @@ func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("Content-Type") == "application/json" {
-		reqBody, err := ioutil.ReadAll(r.Body)
+		reqBody, err := io.ReadAll(r.Body)
 		if err != nil {
 			fmt.Printf("server: could not read request body: %s\n", err)
 		}
@@ -115,7 +115,7 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reqBody, err := ioutil.ReadAll(r.Body)
+	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		fmt.Printf("server: could not read request body: %s\n", err)
 	}
