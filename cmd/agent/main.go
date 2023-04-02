@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"gometric/internal/metric"
 	"log"
 	"os"
@@ -9,18 +10,34 @@ import (
 	"syscall"
 
 	"github.com/caarlos0/env/v7"
+	"github.com/jessevdk/go-flags"
 )
 
 type Config struct {
-	EndpointAddr   string `env:"ADDRESS" envDefault:"127.0.0.1:8080"`
-	ReportInterval int    `env:"REPORT_INTERVAL" envDefault:"10"`
-	PollInterval   int    `env:"POLL_INTERVAL" envDefault:"2"`
+	EndpointAddr   string `long:"address" short:"a" env:"ADDRESS" default:"127.0.0.1:8080" description:"set remote metric collector"`
+	ReportInterval int    `long:"report_interval" short:"r" env:"REPORT_INTERVAL" default:"10" description:"set report interval"`
+	PollInterval   int    `long:"poll_interval" short:"p" env:"POLL_INTERVAL" default:"2" description:"set poll interval"`
 }
 
 func main() {
 	var cfg Config
+
+	parser := flags.NewParser(&cfg, flags.HelpFlag)
+	_, err := parser.Parse()
+	if err != nil {
+		if e, ok := err.(*flags.Error); ok {
+			if e.Type == flags.ErrHelp {
+				fmt.Printf("%s", e.Message)
+				os.Exit(0)
+			}
+		}
+		log.Fatalf("error parse arguments:%+v\n", err)
+	}
+
+	//The values of the config is overridden
+	//from the environment variables
 	if err := env.Parse(&cfg); err != nil {
-		log.Fatalf("Error parse environment:%+v", err)
+		log.Fatalf("error parse env variables:%+v\n", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
