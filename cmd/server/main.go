@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"gometric/internal/server"
 	"log"
 	"os"
@@ -10,20 +11,26 @@ import (
 	"github.com/caarlos0/env/v7"
 )
 
-type Config struct {
-	ListenAddr string `env:"ADDRESS" envDefault:"127.0.0.1:8080"`
-}
-
 func main() {
-	var cfg Config
-	if err := env.Parse(&cfg); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := server.DefaultConfig()
+	if err := env.Parse(cfg); err != nil {
 		log.Fatalf("Error parse environment:%+v", err)
+	}
+
+	serv := server.NewServer(ctx, cfg)
+
+	if cfg.Restore {
+		if err := serv.Restore(); err != nil {
+			log.Print(err)
+		}
 	}
 
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
 
-	serv := server.NewServer()
 	go serv.ListenAndServe(cfg.ListenAddr)
 	log.Print("Server started")
 
