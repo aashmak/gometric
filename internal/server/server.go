@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 type Metrics struct {
@@ -87,12 +88,15 @@ func (s HTTPServer) StoreHandler(ctx context.Context, storeInterval int) {
 
 func (s *HTTPServer) ListenAndServe(addr string) {
 
-	s.chiRouter.Route("/", func(router chi.Router) {
-		s.chiRouter.Get("/", s.listHandler)
-		s.chiRouter.Post("/", s.defaultHandler)
-		s.chiRouter.Post("/value/", s.GetValueHandler)
-		s.chiRouter.Post("/update/", s.UpdateHandler)
-	})
+	// middleware gzip response
+	s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
+
+	// middleware unzip request
+	s.chiRouter.Use(unzipBodyHandler)
+	s.chiRouter.Get("/", s.listHandler)
+	s.chiRouter.Post("/", s.defaultHandler)
+	s.chiRouter.Post("/value/", s.GetValueHandler)
+	s.chiRouter.Post("/update/", s.UpdateHandler)
 
 	s.Server = &http.Server{
 		Addr:    addr,

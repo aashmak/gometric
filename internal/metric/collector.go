@@ -2,9 +2,11 @@ package metric
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -92,18 +94,39 @@ func (c *Collector) SendMetric(ctx context.Context) {
 }
 
 func MakeRequest(ctx context.Context, client *http.Client, url string, body []byte) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
+	var b bytes.Buffer
+
+	writer := gzip.NewWriter(&b)
+	_, err := writer.Write(body)
+	if err != nil {
+		return fmt.Errorf("failed init compress writer: %v", err.Error())
+	}
+	writer.Close()
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(b.Bytes()))
 	if err != nil {
 		return fmt.Errorf("new request error: %s", err.Error())
 	}
 
 	request.Header.Add("Content-Type", "application/json")
+	request.Header.Set("Content-Encoding", "gzip")
+	request.Header.Set("Accept-Encoding", "gzip")
 
 	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("http request error: %s", err.Error())
 	}
 	defer response.Body.Close()
+
+	if response.Header.Get("Content-Encoding") == "gzip" {
+		reader, err := gzip.NewReader(response.Body)
+		if err != nil {
+			return fmt.Errorf("failed init compress reader: %s", err.Error())
+		}
+		defer reader.Close()
+
+		response.Body = io.NopCloser(reader)
+	}
 
 	if response.StatusCode != 200 {
 		return fmt.Errorf("the request was not executed successfully")
