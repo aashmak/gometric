@@ -1,3 +1,5 @@
-
+test:
+	go test -v gometric/internal/...
+	
 statictest:
 	go vet -vettool=$(shell which statictest) ./...

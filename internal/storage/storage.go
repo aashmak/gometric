@@ -8,6 +8,8 @@ type Storage interface {
 	List() []string
 	LoadDump() (map[string]interface{}, error)
 	SaveDump() error
+	Open() error
+	Close() error
 	SetStoreFile(filename string) error
 	SetSyncMode(mode bool)
 }

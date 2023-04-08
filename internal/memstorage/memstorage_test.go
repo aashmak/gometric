@@ -7,8 +7,23 @@ import (
 	"testing"
 )
 
+func TestOpenClose(t *testing.T) {
+	memStor := NewMemStorage()
+	err := memStor.Open()
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+
+	err = memStor.Close()
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+}
+
 func TestStorage1(t *testing.T) {
 	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
 
 	_, err := memStor.Get("abc")
 	if err == nil {
@@ -18,6 +33,8 @@ func TestStorage1(t *testing.T) {
 
 func TestStorage2(t *testing.T) {
 	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
 
 	err := memStor.Set("abc", int(1))
 	if err != nil {
@@ -36,6 +53,8 @@ func TestStorage2(t *testing.T) {
 
 func TestStorage3(t *testing.T) {
 	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
 
 	err := memStor.Set("abc", float64(3.14))
 	if err != nil {
@@ -49,6 +68,8 @@ func TestStorage3(t *testing.T) {
 
 func TestStorage4(t *testing.T) {
 	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
 
 	err := memStor.Set("abc", "abc")
 	if err != nil {
@@ -62,6 +83,8 @@ func TestStorage4(t *testing.T) {
 
 func TestStorage5(t *testing.T) {
 	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
 
 	memStor.Set("xyz", "abc")
 	memStor.Set("abc", "abc")
@@ -76,6 +99,8 @@ func TestStorage5(t *testing.T) {
 
 func TestStorage6(t *testing.T) {
 	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
 
 	err := memStor.Set("abc", nil)
 	if err == nil {
@@ -85,6 +110,9 @@ func TestStorage6(t *testing.T) {
 
 func TestSetStoreFile(t *testing.T) {
 	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
+
 	err := memStor.SetStoreFile("")
 	if err == nil {
 		t.Errorf("Error: filename must not be empty")
@@ -93,6 +121,8 @@ func TestSetStoreFile(t *testing.T) {
 
 func TestSetSyncMode(t *testing.T) {
 	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
 
 	memStor.SetSyncMode(true)
 	if !memStor.SyncMode {
@@ -109,6 +139,8 @@ func TestSaveLoadDump(t *testing.T) {
 	storeFile := "/tmp/test_storeFile.json"
 	memStor := NewMemStorage()
 	memStor.SetStoreFile(storeFile)
+	memStor.Open()
+	defer memStor.Close()
 
 	memStor.Set("a", int(1))
 	memStor.Set("b", float64(3.14))

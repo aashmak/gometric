@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gometric/internal/metric"
 	"log"
@@ -23,9 +24,10 @@ func main() {
 	var cfg Config
 
 	parser := flags.NewParser(&cfg, flags.HelpFlag)
-	_, err := parser.Parse()
-	if err != nil {
-		if e, ok := err.(*flags.Error); ok {
+	if _, err := parser.Parse(); err != nil {
+		var e *flags.Error
+
+		if errors.As(err, &e) {
 			if e.Type == flags.ErrHelp {
 				fmt.Printf("%s", e.Message)
 				os.Exit(0)
