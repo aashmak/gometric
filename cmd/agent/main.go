@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gometric/internal/metric"
+	"gometric/internal/agent"
 	"log"
 	"os"
 	"os/signal"
@@ -18,6 +18,7 @@ type Config struct {
 	EndpointAddr   string `long:"address" short:"a" env:"ADDRESS" default:"127.0.0.1:8080" description:"set remote metric collector"`
 	ReportInterval int    `long:"report_interval" short:"r" env:"REPORT_INTERVAL" default:"10" description:"set report interval"`
 	PollInterval   int    `long:"poll_interval" short:"p" env:"POLL_INTERVAL" default:"2" description:"set poll interval"`
+	KeySign        string `long:"key" short:"k" env:"KEY" description:"set key for signing"`
 }
 
 func main() {
@@ -46,11 +47,12 @@ func main() {
 	defer cancel()
 
 	//Run metric collector with pollInterval 2 sec
-	m := metric.RunCollector(ctx, cfg.PollInterval)
+	m := agent.RunCollector(ctx, cfg.PollInterval)
 
-	collector := metric.Collector{
+	collector := agent.Collector{
 		Endpoint:          "http://" + cfg.EndpointAddr + "/update/",
 		ReportIntervalSec: cfg.ReportInterval,
+		KeySign:           []byte(cfg.KeySign),
 	}
 
 	//prepare metrics for collector

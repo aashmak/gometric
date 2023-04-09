@@ -11,13 +11,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-type Metrics struct {
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
-	Delta *int64   `json:"delta,omitempty"`
-	Value *float64 `json:"value,omitempty"`
-}
-
 type gauge float64
 type counter int64
 
@@ -25,12 +18,14 @@ type HTTPServer struct {
 	Server    *http.Server
 	chiRouter chi.Router
 	Storage   storage.Storage
+	KeySign   []byte
 }
 
 func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 	httpserver := HTTPServer{
 		Storage:   storage.New(),
 		chiRouter: chi.NewRouter(),
+		KeySign:   []byte(cfg.KeySign),
 	}
 
 	httpserver.Storage.SetStoreFile(cfg.StoreFile)
@@ -95,6 +90,7 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 
 	// middleware unzip request
 	s.chiRouter.Use(unzipBodyHandler)
+
 	s.chiRouter.Get("/", s.listHandler)
 	s.chiRouter.Post("/", s.defaultHandler)
 	s.chiRouter.Post("/value/", s.GetValueHandler)
