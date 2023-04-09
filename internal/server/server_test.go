@@ -262,6 +262,13 @@ func TestHTTPServerHash(t *testing.T) {
 			responseStatusCode: http.StatusOK,
 			responseBody:       `{"id":"Alloc","type":"gauge","value":226640,"hash":"3544777d62d524efaacb5eae93073cb716251bff20490e6e5c266376dc002f3e"}`,
 		},
+		{
+			name:               "update incorrect hash #5",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","value":226640,"hash":"3544777d62d524efaacb5eae93073cb716251bff20490e6e5c266376dc000000"}`),
+			responseStatusCode: http.StatusBadRequest,
+			responseBody:       "",
+		},
 	}
 
 	for _, tt := range tests {
