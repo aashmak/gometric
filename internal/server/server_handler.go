@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"gometric/internal/metrics"
@@ -171,4 +172,15 @@ func unzipBodyHandler(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s HTTPServer) pingHandler(w http.ResponseWriter, r *http.Request) {
+	if s.DB != nil {
+		if _, err := s.DB.Exec(context.Background(), "select 1"); err == nil {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}
+
+	http.Error(w, "Internal server error", http.StatusInternalServerError)
 }

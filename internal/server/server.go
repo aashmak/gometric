@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type gauge float64
@@ -19,6 +20,7 @@ type HTTPServer struct {
 	chiRouter chi.Router
 	Storage   storage.Storage
 	KeySign   []byte
+	DB        *pgxpool.Pool
 }
 
 func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
@@ -37,6 +39,18 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 	}
 
 	httpserver.Storage.Open()
+
+	if cfg.DatabaseDSN != "" {
+		poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseDSN)
+		if err != nil {
+			log.Fatalln("Unable to parse DatabaseDSN:", err)
+		}
+
+		httpserver.DB, err = pgxpool.NewWithConfig(ctx, poolConfig)
+		if err != nil {
+			log.Fatalln("Unable to create connection pool:", err)
+		}
+	}
 
 	return &httpserver
 }
@@ -93,6 +107,7 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 
 	s.chiRouter.Get("/", s.listHandler)
 	s.chiRouter.Post("/", s.defaultHandler)
+	s.chiRouter.Get("/ping", s.pingHandler)
 	s.chiRouter.Post("/value/", s.GetValueHandler)
 	s.chiRouter.Post("/update/", s.UpdateHandler)
 
