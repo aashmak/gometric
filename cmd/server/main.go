@@ -41,12 +41,6 @@ func main() {
 
 	serv := server.NewServer(ctx, cfg)
 
-	if cfg.Restore {
-		if err := serv.Restore(); err != nil {
-			log.Print(err)
-		}
-	}
-
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
 

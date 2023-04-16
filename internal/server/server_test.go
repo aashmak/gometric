@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"gometric/internal/postgres"
 	"io"
 	"log"
 	"net/http"
@@ -58,12 +59,12 @@ func httpRequestGzip(ts *httptest.Server, method, path string, body []byte) (int
 }
 
 func TestVariableType(t *testing.T) {
-	var c counter
+	var c int64
 	if !counterType(c) {
 		t.Errorf("Error: Variable is counter type.")
 	}
 
-	var g gauge
+	var g float64
 	if !gaugeType(g) {
 		t.Errorf("Error: Variable is gauge type.")
 	}
@@ -87,6 +88,7 @@ func TestHTTPServer1(t *testing.T) {
 	defer cancel()
 
 	cfg := DefaultConfig()
+	//cfg.DatabaseDSN = "postgresql://gometric:123456@172.17.0.2:5432/gometric"
 	s := NewTestServer(ctx, cfg)
 
 	ts := httptest.NewServer(s.chiRouter)
@@ -220,9 +222,11 @@ func TestHTTPServerHash(t *testing.T) {
 	defer cancel()
 
 	cfg := DefaultConfig()
+	cfg.DatabaseDSN = "postgresql://gometric:123456@172.17.0.2:5432/gometric"
 	cfg.KeySign = "secret"
 
 	s := NewTestServer(ctx, cfg)
+	s.Storage.(*postgres.Postgres).Clear()
 
 	ts := httptest.NewServer(s.chiRouter)
 	defer ts.Close()
