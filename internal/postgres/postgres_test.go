@@ -7,9 +7,10 @@ import (
 
 func TestPostgresDB(t *testing.T) {
 	var err error
-	dsn := "postgresql://gometric:123456@172.17.0.2:5432/gometric"
+	dsn := "postgresql://postgres:postgres@postgres:5432/praktikum"
 	pg := NewPostgresDB(dsn)
 	pg.Open()
+	pg.InitDB()
 	pg.Clear()
 	defer pg.DB.Close()
 
