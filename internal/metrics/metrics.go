@@ -42,9 +42,18 @@ func (m *Metrics) GetSign(key []byte) ([]byte, error) {
 
 	switch m.MType {
 	case "gauge":
-		message = []byte(fmt.Sprintf("%s:gauge:%f", m.ID, *m.Value))
+		if m.Value != nil {
+			message = []byte(fmt.Sprintf("%s:gauge:%f", m.ID, *m.Value))
+		} else {
+			return nil, fmt.Errorf("invalid value")
+		}
+
 	case "counter":
-		message = []byte(fmt.Sprintf("%s:counter:%d", m.ID, *m.Delta))
+		if m.Delta != nil {
+			message = []byte(fmt.Sprintf("%s:counter:%d", m.ID, *m.Delta))
+		} else {
+			return nil, fmt.Errorf("invalid value")
+		}
 	}
 
 	sign, err := Sign(message, key)

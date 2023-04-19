@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -82,6 +83,49 @@ func (p *Postgres) Set(k string, v interface{}) error {
 	return err
 }
 
+func (p *Postgres) MSet(data map[string]interface{}) error {
+	//check valid data
+	for k, v := range data {
+		if k == "" || v == nil {
+			return fmt.Errorf("key or value no must be empty")
+		}
+	}
+
+	ctx := context.Background()
+
+	tx, err := p.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for k, v := range data {
+		var column, queryStr string
+		vtype := fmt.Sprintf("%T", v)
+
+		switch vtype {
+		case "float64":
+			column = "value"
+		case "int":
+			column = "delta"
+		case "int64":
+			column = "delta"
+		default:
+			return fmt.Errorf("invalid type value")
+		}
+
+		queryStr = `INSERT INTO metrics (name, type, ` + column + `) VALUES ($1, $2, $3) 
+				ON CONFLICT (name) DO UPDATE SET type=$2, ` + column + `=$3`
+
+		_, err := p.DB.Exec(context.Background(), queryStr, k, vtype, v)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (p *Postgres) Get(k string) (interface{}, error) {
 	var vtype string
 	var delta *int64
@@ -105,7 +149,7 @@ func (p *Postgres) Get(k string) (interface{}, error) {
 }
 
 func (p *Postgres) List() []string {
-	var list []string
+	var s []string
 
 	rows, err := p.DB.Query(context.Background(), `SELECT name FROM metrics;`)
 	if err != nil {
@@ -120,10 +164,11 @@ func (p *Postgres) List() []string {
 			log.Printf("Error: %s", err.Error())
 			return nil
 		}
-		list = append(list, l)
+		s = append(s, l)
 	}
 
-	return list
+	sort.Strings(s)
+	return s
 }
 
 func (p *Postgres) Close() error {

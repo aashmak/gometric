@@ -78,6 +78,7 @@ func NewTestServer(ctx context.Context, cfg *Config) *HTTPServer {
 	s.chiRouter.Post("/", s.defaultHandler)
 	s.chiRouter.Post("/value/", s.GetValueHandler)
 	s.chiRouter.Post("/update/", s.UpdateHandler)
+	s.chiRouter.Post("/updates/", s.UpdatesHandler)
 
 	return s
 }
@@ -321,12 +322,45 @@ func TestHTTPServerWithDB(t *testing.T) {
 			responseStatusCode: http.StatusNotFound,
 			responseBody:       "",
 		},
+		{
+			name:   "updates multi data #1",
+			action: "updates",
+			requestBody: []byte(`[{"id":"PollCount1","type":"counter","delta":1},
+                                        {"id":"PollCount2","type":"counter","delta":1},
+										{"id":"Alloc1","type":"gauge","value":1907608},
+                                        {"id":"Alloc2","type":"gauge","value":1907777}]`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "get value after multi data #2",
+			action:             "value",
+			requestBody:        []byte(`{"id":"PollCount1","type":"counter"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"PollCount1","type":"counter","delta":1}`,
+		},
+		{
+			name:               "get value after multi data #3",
+			action:             "value",
+			requestBody:        []byte(`{"id":"Alloc2","type":"gauge"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"Alloc2","type":"gauge","value":1907777}`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// set single data
 			if tt.action == "update" {
 				statusCode, body := httpRequest(ts, "POST", "/update/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
+
+			// set multi data
+			if tt.action == "updates" {
+				statusCode, body := httpRequest(ts, "POST", "/updates/", tt.requestBody)
 				if statusCode != tt.responseStatusCode || body != tt.responseBody {
 					t.Errorf("Error")
 				}

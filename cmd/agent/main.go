@@ -50,7 +50,7 @@ func main() {
 	m := agent.RunCollector(ctx, cfg.PollInterval)
 
 	collector := agent.Collector{
-		Endpoint:          "http://" + cfg.EndpointAddr + "/update/",
+		Endpoint:          "http://" + cfg.EndpointAddr + "/updates/",
 		ReportIntervalSec: cfg.ReportInterval,
 		KeySign:           []byte(cfg.KeySign),
 	}

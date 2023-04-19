@@ -155,6 +155,64 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 }
 
+func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
+
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/json" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	reqBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		fmt.Printf("server: could not read request body: %s\n", err)
+	}
+
+	var metrics []metrics.Metrics
+	if err := json.Unmarshal(reqBody, &metrics); err != nil {
+		log.Printf("Error: %s", err.Error())
+		return
+	}
+
+	data := make(map[string]interface{})
+
+	for _, metric := range metrics {
+		// ValidMAC if key is not epmty
+		if !bytes.Equal(s.KeySign, []byte{}) {
+			if !metric.ValidMAC(s.KeySign) {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+		}
+
+		switch metric.MType {
+		case "gauge":
+			if metric.ID != "" && metric.Value != nil {
+				data[metric.ID] = float64(*metric.Value)
+			}
+
+		case "counter":
+			// get previous counter value
+			prevCounter, err := s.Storage.Get(metric.ID)
+			if err != nil {
+				prevCounter = int64(0)
+			}
+
+			if metric.ID != "" && metric.Delta != nil {
+				data[metric.ID] = (*metric.Delta + prevCounter.(int64))
+			}
+		}
+	}
+
+	err = s.Storage.MSet(data)
+	if err == nil {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	w.WriteHeader(http.StatusForbidden)
+}
+
 func unzipBodyHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Content-Encoding") == "gzip" {
