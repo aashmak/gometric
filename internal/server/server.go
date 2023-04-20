@@ -2,10 +2,10 @@ package server
 
 import (
 	"context"
+	"gometric/internal/logger"
 	"gometric/internal/memstorage"
 	"gometric/internal/postgres"
 	"gometric/internal/storage"
-	"log"
 	"net/http"
 	"time"
 
@@ -34,7 +34,7 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 		httpserver.Storage.Open()
 		err := httpserver.Storage.(*postgres.Postgres).InitDB()
 		if err != nil {
-			log.Fatalf("Init db error: %s", err.Error())
+			logger.Fatal("", err)
 		}
 	} else {
 		syncMode := false
@@ -49,7 +49,7 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 
 		if cfg.Restore {
 			if err := httpserver.Restore(); err != nil {
-				log.Print(err)
+				logger.Error("", err)
 			}
 		}
 	}
@@ -61,6 +61,7 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 func (s HTTPServer) Restore() error {
 	data, err := s.Storage.(*memstorage.MemStorage).LoadDump()
 	if err != nil {
+		logger.Error("restore from json db", err)
 		return err
 	}
 
@@ -95,7 +96,7 @@ func (s HTTPServer) StoreHandler(ctx context.Context, storeInterval int) {
 				return
 			default:
 				if err := s.Storage.(*memstorage.MemStorage).SaveDump(); err != nil {
-					log.Print(err)
+					logger.Error("save dump to json db", err)
 				}
 
 				<-time.After(interval)
@@ -126,7 +127,7 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 	}
 
 	if err := s.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("listen: %s\n", err)
+		logger.Fatal("", err)
 	}
 }
 
@@ -135,10 +136,10 @@ func (s *HTTPServer) Shutdown() {
 	defer cancel()
 
 	if err := s.Server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server shutdown failed:%+v", err)
+		logger.Fatal("Server shutdown failed", err)
 	}
 
 	if err := s.Storage.Close(); err != nil {
-		log.Fatalf("Server storage close is failed:%+v", err)
+		logger.Fatal("Server storage close is failed", err)
 	}
 }

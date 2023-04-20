@@ -6,8 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gometric/internal/logger"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -62,7 +62,7 @@ func (c *Collector) SendMetric(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Print("SendMetric stopped")
+			logger.Info("SendMetric stopped")
 			return
 
 		default:
@@ -79,13 +79,13 @@ func (c *Collector) SendMetric(ctx context.Context) {
 
 				ret, err := json.Marshal(tmpMetrics)
 				if err != nil {
-					log.Printf("Error: %s", err.Error())
+					logger.Error("", err)
 					return
 				}
 
 				err = MakeRequest(ctx, client, c.Endpoint, ret)
 				if err != nil {
-					log.Printf("Http request error: %s", err.Error())
+					logger.Error("", err)
 				}
 			}()
 		}

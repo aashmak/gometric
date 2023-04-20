@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
+	"gometric/internal/logger"
 	"gometric/internal/server"
 	"log"
 	"os"
@@ -23,7 +23,7 @@ func main() {
 
 		if errors.As(err, &e) {
 			if e.Type == flags.ErrHelp {
-				fmt.Printf("%s", e.Message)
+				log.Printf("%s", e.Message)
 				os.Exit(0)
 			}
 		}
@@ -36,6 +36,9 @@ func main() {
 		log.Fatalf("Error parse environment:%+v\n", err)
 	}
 
+	logger.NewLogger(cfg.LogLevel, cfg.LogFile)
+	defer logger.Close()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -45,10 +48,10 @@ func main() {
 	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
 
 	go serv.ListenAndServe(cfg.ListenAddr)
-	log.Print("Server started")
+	logger.Info("Server started")
 
 	<-sigint
 
 	serv.Shutdown()
-	log.Print("Server stopped")
+	logger.Info("Server stopped")
 }

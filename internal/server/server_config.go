@@ -7,6 +7,8 @@ type Config struct {
 	Restore       bool   `long:"restore" short:"r" env:"RESTORE" description:"autorestore from file"`
 	KeySign       string `long:"key" short:"k" env:"KEY" description:"set key for signing"`
 	DatabaseDSN   string `long:"database" short:"d" env:"DATABASE_DSN" description:"set database dsn"`
+	LogLevel      string `long:"log_level" env:"LOG_LEVEL" default:"info" description:"set log level"`
+	LogFile       string `long:"log_file" env:"LOG_FILE" default:"" description:"set log file"`
 }
 
 func DefaultConfig() *Config {
