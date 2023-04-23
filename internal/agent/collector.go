@@ -87,6 +87,7 @@ func (c *Collector) SendMetric(ctx context.Context) {
 				if err != nil {
 					logger.Error("", err)
 				}
+				logger.Debug("the request was executed successfully")
 			}()
 		}
 

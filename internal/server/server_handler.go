@@ -230,7 +230,9 @@ func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 
 func unzipBodyHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Content-Encoding") == "gzip" {
+		contentEncodingValues := r.Header.Values("Content-Encoding")
+
+		if contentEncodingContains(contentEncodingValues, "gzip") {
 			reader, err := gzip.NewReader(r.Body)
 			if err != nil {
 				http.Error(

@@ -108,37 +108,10 @@ func TestStorage6(t *testing.T) {
 	}
 }
 
-func TestSetStoreFile(t *testing.T) {
-	memStor := NewMemStorage()
-	memStor.Open()
-	defer memStor.Close()
-
-	err := memStor.SetStoreFile("")
-	if err == nil {
-		t.Errorf("Error: filename must not be empty")
-	}
-}
-
-func TestSetSyncMode(t *testing.T) {
-	memStor := NewMemStorage()
-	memStor.Open()
-	defer memStor.Close()
-
-	memStor.SetSyncMode(true)
-	if !memStor.SyncMode {
-		t.Errorf("Error: syn mode must be true")
-	}
-
-	memStor.SetSyncMode(false)
-	if memStor.SyncMode {
-		t.Errorf("Error: syn mode must be false")
-	}
-}
-
 func TestSaveLoadDump(t *testing.T) {
 	storeFile := "/tmp/test_storeFile.json"
 	memStor := NewMemStorage()
-	memStor.SetStoreFile(storeFile)
+	memStor.StoreFile = storeFile
 	memStor.Open()
 	defer memStor.Close()
 

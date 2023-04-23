@@ -15,5 +15,6 @@ func DefaultConfig() *Config {
 	return &Config{
 		ListenAddr: "127.0.0.1:8080",
 		KeySign:    "",
+		StoreFile:  "/tmp/devops-metrics-db.json",
 	}
 }

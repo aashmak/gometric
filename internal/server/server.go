@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type gauge float64
@@ -30,9 +31,20 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 	}
 
 	if cfg.DatabaseDSN != "" {
-		httpserver.Storage = storage.NewPostgresDB(cfg.DatabaseDSN)
-		httpserver.Storage.Open()
-		err := httpserver.Storage.(*postgres.Postgres).InitDB()
+		var db *pgxpool.Pool
+
+		poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseDSN)
+		if err != nil {
+			logger.Fatal("unable to parse database dsn", err)
+		}
+
+		db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
+		if err != nil {
+			logger.Fatal("unable to create connection pool", err)
+		}
+
+		httpserver.Storage = storage.NewPostgresDB(db)
+		err = httpserver.Storage.(*postgres.Postgres).InitDB()
 		if err != nil {
 			logger.Fatal("", err)
 		}
@@ -43,13 +55,17 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 			syncMode = true
 		}
 
-		httpserver.Storage = storage.NewMemStorage(cfg.StoreFile, syncMode)
-		httpserver.Storage.Open()
+		var err error
+		httpserver.Storage, err = storage.NewMemStorage(cfg.StoreFile, syncMode)
+		if err != nil {
+			logger.Fatal("new MemStorage", err)
+		}
+
 		httpserver.StoreHandler(ctx, cfg.StoreInterval)
 
 		if cfg.Restore {
 			if err := httpserver.Restore(); err != nil {
-				logger.Error("", err)
+				logger.Error("restore MemStorage", err)
 			}
 		}
 	}

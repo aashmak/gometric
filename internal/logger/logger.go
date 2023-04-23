@@ -49,8 +49,15 @@ func NewLogger(level string, logFile string) {
 	Log.logger = zerolog.New(os.Stdout).With().Timestamp().Logger()
 }
 
-func Close() {
-	Log.flog.Close()
+func Close() error {
+	if Log.flog != nil {
+		err := Log.flog.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Debug logs a debug message.

@@ -70,6 +70,22 @@ func TestVariableType(t *testing.T) {
 	}
 }
 
+func TestContentEncodingContains(t *testing.T) {
+	contentEncodingValues := []string{"deflate", "gzip", "bzip"}
+
+	if !contentEncodingContains(contentEncodingValues, "deflate") {
+		t.Errorf("Error: content contain deflate")
+	}
+
+	if !contentEncodingContains(contentEncodingValues, "gzip") {
+		t.Errorf("Error: content contain gzip")
+	}
+
+	if contentEncodingContains(contentEncodingValues, "fake") {
+		t.Errorf("Error: content not contain fake")
+	}
+}
+
 func NewTestServer(ctx context.Context, cfg *Config) *HTTPServer {
 	s := NewServer(ctx, cfg)
 	s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))

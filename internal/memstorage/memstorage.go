@@ -25,27 +25,14 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
-func (m *MemStorage) SetSyncMode(mode bool) {
-	m.SyncMode = mode
-}
-
-func (m *MemStorage) SetStoreFile(filename string) error {
-	if filename == "" {
-		return fmt.Errorf("filename is empty")
-	}
-
-	m.StoreFile = filename
-
-	return nil
-}
-
 func (m *MemStorage) Open() error {
-	file, err := os.OpenFile(m.StoreFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	var err error
+
+	m.File, err = os.OpenFile(m.StoreFile, os.O_RDWR|os.O_CREATE, 0777)
 	if err != nil {
 		return err
 	}
 
-	m.File = file
 	return nil
 }
 
@@ -74,7 +61,27 @@ func (m *MemStorage) Set(k string, v interface{}) error {
 }
 
 func (m *MemStorage) MSet(data map[string]interface{}) error {
-	return fmt.Errorf("invalid method")
+	//check valid data
+	for k, v := range data {
+		if k == "" || v == nil {
+			return fmt.Errorf("key or value no must be empty")
+		}
+	}
+
+	m.Mutex.Lock()
+	for k, v := range data {
+		m.Metrics[k] = v
+	}
+	m.Mutex.Unlock()
+
+	if m.SyncMode {
+		err := m.SaveDump()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (m *MemStorage) Get(k string) (interface{}, error) {
@@ -105,18 +112,16 @@ func (m *MemStorage) List() []string {
 }
 
 func (m *MemStorage) SaveDump() error {
-	file, err := os.OpenFile(m.StoreFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
 
 	db, err := json.Marshal(m.Metrics)
 	if err != nil {
 		return err
 	}
 
-	file.Write(db)
+	m.File.Truncate(0)
+	m.File.Seek(0, 0)
+	m.File.Write(db)
+	m.File.Sync()
 
 	return nil
 }
