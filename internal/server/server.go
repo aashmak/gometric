@@ -125,7 +125,7 @@ func (s HTTPServer) StoreHandler(ctx context.Context, storeInterval int) {
 func (s *HTTPServer) ListenAndServe(addr string) {
 
 	// middleware gzip response
-	s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
+	//s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
 
 	// middleware unzip request
 	s.chiRouter.Use(unzipBodyHandler)
@@ -135,7 +135,8 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 	s.chiRouter.Get("/ping", s.pingHandler)
 	s.chiRouter.Post("/value/", s.GetValueHandler)
 	s.chiRouter.Post("/update/", s.UpdateHandler)
-	s.chiRouter.Post("/updates/", s.UpdatesHandler)
+	//s.chiRouter.Post("/updates/", s.UpdatesHandler)
+	s.chiRouter.Mount("/debug", middleware.Profiler())
 
 	s.Server = &http.Server{
 		Addr:    addr,
