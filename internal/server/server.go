@@ -2,12 +2,13 @@ package server
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	"gometric/internal/logger"
 	"gometric/internal/memstorage"
 	"gometric/internal/postgres"
 	"gometric/internal/storage"
-	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"

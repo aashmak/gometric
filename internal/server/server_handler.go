@@ -5,11 +5,12 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+
 	"gometric/internal/logger"
 	"gometric/internal/metrics"
 	"gometric/internal/postgres"
-	"io"
-	"net/http"
 )
 
 func (s HTTPServer) defaultHandler(w http.ResponseWriter, r *http.Request) {
