@@ -2,6 +2,7 @@ package memstorage
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -108,6 +109,31 @@ func TestStorage6(t *testing.T) {
 	}
 }
 
+func TestStorage7(t *testing.T) {
+	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
+
+	mData := make(map[string]interface{})
+	mData["abc"] = "abc"
+	mData["def"] = int(1)
+	mData["xyz"] = float64(3.14)
+
+	memStor.MSet(mData)
+
+	if v, _ := memStor.Get("abc"); v != "abc" {
+		t.Errorf("Error: value is incorrect")
+	}
+
+	if v, _ := memStor.Get("def"); v != int(1) {
+		t.Errorf("Error: value is incorrect")
+	}
+
+	if v, _ := memStor.Get("xyz"); v != float64(3.14) {
+		t.Errorf("Error: value is incorrect")
+	}
+}
+
 func TestSaveLoadDump(t *testing.T) {
 	storeFile := "/tmp/test_storeFile.json"
 	memStor := NewMemStorage()
@@ -172,4 +198,46 @@ func BenchmarkSaveDump(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		memStor.SaveDump()
 	}
+}
+
+func ExampleMemStorage_Set() {
+	memStor := NewMemStorage()
+
+	memStor.Set("abc", int(1))
+	v, _ := memStor.Get("abc")
+
+	fmt.Printf("%d", v)
+
+	// Output:
+	// 1
+}
+
+func ExampleMemStorage_MSet() {
+	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
+
+	mData := make(map[string]interface{})
+	mData["abc"] = "abc"
+	mData["def"] = int(1)
+	mData["xyz"] = float64(3.14)
+
+	memStor.MSet(mData)
+
+	if v, err := memStor.Get("abc"); err == nil {
+		fmt.Printf("%s\n", v)
+	}
+
+	if v, err := memStor.Get("def"); err == nil {
+		fmt.Printf("%d\n", v)
+	}
+
+	if v, err := memStor.Get("xyz"); err == nil {
+		fmt.Printf("%.2f", v)
+	}
+
+	// Output:
+	// abc
+	// 1
+	// 3.14
 }

@@ -13,10 +13,12 @@ import (
 	"gometric/internal/postgres"
 )
 
+// defaultHandler стандарный handler, возвращает статус http.StatusForbidden.
 func (s HTTPServer) defaultHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 }
 
+// listHandler выводит все существующие метрики в виде html.
 func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 	var varList string
 
@@ -39,6 +41,8 @@ func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 		"</body>\n</html>", varList)
 }
 
+// GetValueHandler извлекает метрики из key-value бэкенда и отсылает в формате json.
+// Функция также подписывает сообщение перед отправкой с помощью функции Sign().
 func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("Content-Type") == "application/json" {
@@ -108,6 +112,8 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
+// UpdateHandler принимает метрики в формате json и сохраняет в key-value бэкенд.
+// Функция также проверяет подпись с помощью ValidMAC().
 func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 	contentType := r.Header.Get("Content-Type")
@@ -229,6 +235,7 @@ func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 }
 
+// unzipBodyHandler используется для распаковки сжатого с помощью gzip тела сообщения.
 func unzipBodyHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentEncodingValues := r.Header.Values("Content-Encoding")
@@ -252,6 +259,8 @@ func unzipBodyHandler(next http.Handler) http.Handler {
 	})
 }
 
+// pingHandler используется для проверки доступности БД.
+// Используется только с бэкендом Postgres.
 func (s HTTPServer) pingHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.Storage.(*postgres.Postgres); ok {
 		if err := s.Storage.(*postgres.Postgres).Ping(); err == nil {

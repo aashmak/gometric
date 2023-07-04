@@ -1,3 +1,4 @@
+// Пакет postgres предназначен организации key-value хранилища с бекендом Postgres.
 package postgres
 
 import (
@@ -9,16 +10,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Postgres описывает структуру.
 type Postgres struct {
 	DB *pgxpool.Pool
 }
 
+// NewPostgresDB возвращает указатель на структуру Postgres.
 func NewPostgresDB(db *pgxpool.Pool) *Postgres {
 	return &Postgres{
 		DB: db,
 	}
 }
 
+// InitDB создает новую таблицу, если она отсутствует.
 func (p *Postgres) InitDB() error {
 	queryStr := `CREATE TABLE IF NOT EXISTS metrics (
 		name text unique not null,
@@ -32,12 +36,14 @@ func (p *Postgres) InitDB() error {
 	return err
 }
 
+// Clear очищает таблицу.
 func (p *Postgres) Clear() error {
 	_, err := p.DB.Exec(context.Background(), `TRUNCATE metrics;`)
 
 	return err
 }
 
+// Set задает значение value для ключа key.
 func (p *Postgres) Set(k string, v interface{}) error {
 	if v == nil {
 		return fmt.Errorf("invalid value")
@@ -67,6 +73,7 @@ func (p *Postgres) Set(k string, v interface{}) error {
 	return err
 }
 
+// MSet устанавливает несколько ключей одновременно, заменяяя существующие значения, аналогично SET.
 func (p *Postgres) MSet(data map[string]interface{}) error {
 	//check valid data
 	for k, v := range data {
@@ -112,6 +119,7 @@ func (p *Postgres) MSet(data map[string]interface{}) error {
 	return tx.Commit(ctx)
 }
 
+// Get извлекает значение value для ключа key.
 func (p *Postgres) Get(k string) (interface{}, error) {
 	var vtype string
 	var delta *int64
@@ -134,6 +142,7 @@ func (p *Postgres) Get(k string) (interface{}, error) {
 	}
 }
 
+// List выводит списко всех ключей.
 func (p *Postgres) List() []string {
 	var s []string
 
@@ -157,12 +166,14 @@ func (p *Postgres) List() []string {
 	return s
 }
 
+// Close закрывает БД.
 func (p *Postgres) Close() error {
 	p.DB.Close()
 
 	return nil
 }
 
+// Ping посылает Ping к БД, если ошибок нет, то запрос считается успешным.
 func (p *Postgres) Ping() error {
 	return p.DB.Ping(context.Background())
 }
