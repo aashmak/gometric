@@ -160,32 +160,27 @@ func Example() {
 	defer pg.DB.Close()
 
 	mdata := make(map[string]interface{})
-	mdata["abc"] = "abc"
-	mdata["def"] = int(1)
-	mdata["xyz"] = float64(3.14)
+	mdata["abc"] = int(1)
+	mdata["def"] = float64(3.14)
+	mdata["xyz"] = float64(2.00)
 
 	pg.MSet(mdata)
-	pg.Set("abcabc", int(2))
+	pg.Set("abc", int(2))
 
 	if v, err := pg.Get("abc"); err == nil {
-		fmt.Printf("%s\n", v)
+		fmt.Printf("%d\n", v)
 	}
 
 	if v, err := pg.Get("def"); err == nil {
-		fmt.Printf("%d\n", v)
+		fmt.Printf("%.2f\n", v)
 	}
 
 	if v, err := pg.Get("xyz"); err == nil {
 		fmt.Printf("%.2f\n", v)
 	}
 
-	if v, err := pg.Get("abcabc"); err == nil {
-		fmt.Printf("%d\n", v)
-	}
-
 	// Output:
-	// abc
-	// 1
-	// 3.14
 	// 2
+	// 3.14
+	// 2.00
 }
