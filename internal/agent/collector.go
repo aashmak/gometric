@@ -19,7 +19,7 @@ type Collector struct {
 	Endpoint          string
 	ReportIntervalSec int
 	Metrics           []metrics.Metrics
-	KeySign           []byte
+	KeySign           string
 	RateLimit         int
 }
 
@@ -62,14 +62,14 @@ func (c *Collector) SendMetric(ctx context.Context) {
 		Timeout: interval,
 	}
 
-	requestQueue := make(chan []byte, 50)
+	requestQueue := make(chan *bytes.Buffer)
 
-	//Create worker pool
+	// Create worker pool
 	for i := 0; i < c.RateLimit; i++ {
 		workerID := i + 1
-		go func(workerID int, ctx context.Context, client *http.Client, url string, requestQueue <-chan []byte) {
-			for req := range requestQueue {
-				err := MakeRequest(ctx, client, c.Endpoint, req)
+		go func(workerID int, ctx context.Context, client *http.Client, url string, requestQueue <-chan *bytes.Buffer) {
+			for request := range requestQueue {
+				err := MakeRequest(ctx, client, c.Endpoint, request)
 				if err != nil {
 					logger.Error(fmt.Sprintf("[Worker #%d]", workerID), err)
 				} else {
@@ -88,8 +88,8 @@ func (c *Collector) SendMetric(ctx context.Context) {
 
 		default:
 			for _, metric := range c.Metrics {
-				//sign if key is not empty
-				if !bytes.Equal(c.KeySign, []byte{}) {
+				// sign if key is not empty
+				if c.KeySign == "" {
 					metric.Sign(c.KeySign)
 				}
 
@@ -97,7 +97,7 @@ func (c *Collector) SendMetric(ctx context.Context) {
 				if err != nil {
 					logger.Error("", err)
 				} else {
-					requestQueue <- metricJSON
+					requestQueue <- bytes.NewBuffer(metricJSON)
 				}
 			}
 		}
@@ -106,11 +106,11 @@ func (c *Collector) SendMetric(ctx context.Context) {
 	}
 }
 
-func MakeRequest(ctx context.Context, client *http.Client, url string, body []byte) error {
+func MakeRequest(ctx context.Context, client *http.Client, url string, body *bytes.Buffer) error {
 	var b bytes.Buffer
 
 	writer := gzip.NewWriter(&b)
-	_, err := writer.Write(body)
+	_, err := writer.Write(body.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed init compress writer: %v", err.Error())
 	}

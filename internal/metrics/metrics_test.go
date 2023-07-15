@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -9,8 +8,8 @@ import (
 )
 
 func TestHash1(t *testing.T) {
-	message := []byte("test message")
-	key := []byte("secret")
+	message := "test message"
+	key := "secret"
 
 	hash, err := Sign(message, key)
 	if err != nil {
@@ -23,21 +22,20 @@ func TestHash1(t *testing.T) {
 }
 
 func TestHash2(t *testing.T) {
-	message := []byte{}
-	key := []byte{}
-	_, err := Sign(message[:], key)
+	message := ""
+	key := ""
+	_, err := Sign(message, key)
 	if err != nil {
 		t.Errorf("Error: %s", err)
 	}
 
-	if bytes.Equal(message[:], []byte{}) {
-		fmt.Printf("msg: %v\n", hex.EncodeToString(message[:]))
+	if message == "" {
+		fmt.Printf("msg: %s\n", message)
 	}
-
 }
 
 func TestGetSign(t *testing.T) {
-	key := []byte("secret")
+	key := "secret"
 
 	tests := []struct {
 		name string
@@ -92,7 +90,7 @@ func TestGetSign(t *testing.T) {
 }
 
 func TestValidMAC(t *testing.T) {
-	key := []byte("secret")
+	key := "secret"
 
 	tests := []struct {
 		name     string
@@ -129,7 +127,7 @@ func TestValidMAC(t *testing.T) {
 }
 
 func TestSign(t *testing.T) {
-	key := []byte("secret")
+	key := "secret"
 
 	tests := []struct {
 		name string
@@ -174,8 +172,8 @@ func TestSign(t *testing.T) {
 
 func ExampleSign() {
 
-	message := []byte("test message")
-	key := []byte("secret")
+	message := "test message"
+	key := "secret"
 
 	hash, _ := Sign(message, key)
 	fmt.Printf("%s", hex.EncodeToString(hash))
@@ -187,7 +185,7 @@ func ExampleSign() {
 func ExampleMetrics_ValidMAC() {
 	m := Metrics{}
 	message := `{"id":"Alloc","type":"gauge","value":1907608,"hash":"eedda5f934b51f71d9255066a51e63a30567c14960c9c5922a8389adac649819"}`
-	key := []byte("secret")
+	key := "secret"
 
 	json.Unmarshal([]byte(message), &m)
 
