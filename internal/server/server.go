@@ -3,9 +3,11 @@ package server
 
 import (
 	"context"
+	"crypto/rsa"
 	"net/http"
 	"time"
 
+	"gometric/internal/crypto"
 	"gometric/internal/logger"
 	"gometric/internal/memstorage"
 	"gometric/internal/postgres"
@@ -18,10 +20,11 @@ import (
 
 // HTTPServer описывает структуру сервера.
 type HTTPServer struct {
-	Server    *http.Server
-	chiRouter chi.Router
-	Storage   storage.Storage
-	KeySign   string
+	Server        *http.Server
+	chiRouter     chi.Router
+	Storage       storage.Storage
+	KeySign       string
+	RSAPrivateKey *rsa.PrivateKey
 }
 
 // NewServer создает новый http сервер.
@@ -29,6 +32,15 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 	httpserver := HTTPServer{
 		chiRouter: chi.NewRouter(),
 		KeySign:   cfg.KeySign,
+	}
+
+	if cfg.RSAPrivateKey != "" {
+		var err error
+		httpserver.RSAPrivateKey, err = crypto.NewPrivateKey(cfg.RSAPrivateKey)
+		if err != nil {
+			logger.Fatal("new private key failed", err)
+		}
+		logger.Debug("new private key initialized")
 	}
 
 	if cfg.DatabaseDSN != "" {
@@ -131,7 +143,9 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 	// middleware gzip response
 	// s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
 
-	// middleware unzip request
+	// middleware decrypt body
+	s.chiRouter.Use(s.decryptRSABodyHandler)
+	// middleware unzip body
 	s.chiRouter.Use(unzipBodyHandler)
 
 	s.chiRouter.Get("/", s.listHandler)

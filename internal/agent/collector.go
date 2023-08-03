@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
+	"gometric/internal/crypto"
 	"gometric/internal/logger"
 
 	"gometric/internal/metrics"
@@ -20,6 +23,7 @@ type Collector struct {
 	ReportIntervalSec int
 	Metrics           []metrics.Metrics
 	KeySign           string
+	RSAPublicKey      string
 	RateLimit         int
 }
 
@@ -55,11 +59,21 @@ func (c *Collector) RegisterMetric(name string, value interface{}) error {
 	return nil
 }
 
-func (c *Collector) SendMetric(ctx context.Context) {
+func (c *Collector) SendMetric(ctx context.Context, wg *sync.WaitGroup) {
 	var interval = time.Duration(c.ReportIntervalSec) * time.Second
 
 	client := &http.Client{
 		Timeout: interval,
+	}
+
+	var pubKey *rsa.PublicKey
+	var err error
+	if c.RSAPublicKey != "" {
+		pubKey, err = crypto.NewPublicKey(c.RSAPublicKey)
+		if err != nil {
+			logger.Error("new public key error", err)
+			return
+		}
 	}
 
 	requestQueue := make(chan *bytes.Buffer)
@@ -67,23 +81,25 @@ func (c *Collector) SendMetric(ctx context.Context) {
 	// Create worker pool
 	for i := 0; i < c.RateLimit; i++ {
 		workerID := i + 1
-		go func(workerID int, ctx context.Context, client *http.Client, url string, requestQueue <-chan *bytes.Buffer) {
+		wg.Add(1)
+		go func(ctx context.Context, wg *sync.WaitGroup, workerID int, client *http.Client, url string, pubKey *rsa.PublicKey, requestQueue <-chan *bytes.Buffer) {
 			for request := range requestQueue {
-				err := MakeRequest(ctx, client, c.Endpoint, request)
+				err := MakeRequest(ctx, client, c.Endpoint, pubKey, request)
 				if err != nil {
 					logger.Error(fmt.Sprintf("[Worker #%d]", workerID), err)
 				} else {
 					logger.Debug(fmt.Sprintf("[Worker #%d] the request was executed successfully", workerID))
 				}
 			}
-		}(workerID, ctx, client, c.Endpoint, requestQueue)
+			wg.Done()
+		}(ctx, wg, workerID, client, c.Endpoint, pubKey, requestQueue)
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			close(requestQueue)
-			logger.Info("SendMetric stopped")
+			logger.Debug("SendMetric() stopped")
 			return
 
 		default:
@@ -106,15 +122,25 @@ func (c *Collector) SendMetric(ctx context.Context) {
 	}
 }
 
-func MakeRequest(ctx context.Context, client *http.Client, url string, body *bytes.Buffer) error {
+func MakeRequest(ctx context.Context, client *http.Client, url string, pubKey *rsa.PublicKey, body *bytes.Buffer) error {
 	var b bytes.Buffer
 
-	writer := gzip.NewWriter(&b)
-	_, err := writer.Write(body.Bytes())
+	gzipWriter := gzip.NewWriter(&b)
+	_, err := gzipWriter.Write(body.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed init compress writer: %v", err.Error())
 	}
-	writer.Close()
+	gzipWriter.Close()
+
+	if pubKey != nil {
+		var enc []byte
+		enc, err = crypto.Encrypt(pubKey, &b)
+		if err != nil {
+			return fmt.Errorf("encrypt failed: %v", err.Error())
+		}
+
+		b = *bytes.NewBuffer(enc)
+	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(b.Bytes()))
 	if err != nil {
@@ -124,6 +150,10 @@ func MakeRequest(ctx context.Context, client *http.Client, url string, body *byt
 	request.Header.Add("Content-Type", "application/json")
 	request.Header.Set("Content-Encoding", "gzip")
 	request.Header.Set("Accept-Encoding", "gzip")
+
+	if pubKey != nil {
+		request.Header.Add("Content-Encrypt", "rsa")
+	}
 
 	response, err := client.Do(request)
 	if err != nil {
