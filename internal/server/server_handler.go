@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 
 	"gometric/internal/crypto"
@@ -218,6 +219,26 @@ func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 
 	logger.Debug("response status is Forbidden")
 	w.WriteHeader(http.StatusForbidden)
+}
+
+// trustedSubnetHandler проверяет, что переданный в заголовке запроса X-Real-IP, X-Forwarded-For IP-адрес агента
+// входит в доверенную подсеть, в противном случае возвращается статус ответа 403 Forbidden.
+func (s HTTPServer) trustedSubnetHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		realIP := r.RemoteAddr
+
+		if s.TrustedSubnet != nil {
+			IPAddr := net.ParseIP(realIP)
+
+			if IPAddr == nil || !s.TrustedSubnet.Contains(IPAddr) {
+				logger.Debug(fmt.Sprintf("client IP %s is not allowed", IPAddr))
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // unzipBodyHandler используется для распаковки сжатого с помощью gzip тела сообщения.

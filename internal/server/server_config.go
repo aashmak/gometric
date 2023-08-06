@@ -12,6 +12,7 @@ import (
 type Config struct {
 	ConfigFile    string `long:"config" short:"c" env:"CONFIG" default:"" description:"set config file"`
 	ListenAddr    string `long:"address" short:"a" env:"ADDRESS" default:"127.0.0.1:8080" description:"set listen address"`
+	TrustedSubnet string `long:"trusted_subnet" short:"t" env:"TRUSTED_SUBNET" description:"set trusted subnet (example: 10.0.0.0/8)"`
 	StoreInterval int    `long:"store_interval" short:"i" env:"STORE_INTERVAL" default:"300" description:"set interval store to file"`
 	StoreFile     string `long:"store_file" short:"f" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json" description:"set store file"`
 	Restore       bool   `long:"restore" short:"r" env:"RESTORE" description:"autorestore from file"`
@@ -39,6 +40,7 @@ func ParseConfigFile(cfg *Config) error {
 
 	cfgTmp := struct {
 		ListenAddr    string `json:"address,omitempty"`
+		TrustedSubnet string `json:"trusted_subnet,omitempty"`
 		Restore       bool   `json:"restore,omitempty"`
 		StoreInterval string `json:"store_interval,omitempty"`
 		StoreFile     string `json:"store_file,omitempty"`
@@ -58,6 +60,10 @@ func ParseConfigFile(cfg *Config) error {
 
 	if cfg.ListenAddr == "127.0.0.1:8080" {
 		cfg.ListenAddr = cfgTmp.ListenAddr
+	}
+
+	if cfg.TrustedSubnet == "" {
+		cfg.TrustedSubnet = cfgTmp.TrustedSubnet
 	}
 
 	if !cfg.Restore {

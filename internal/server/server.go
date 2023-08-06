@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"crypto/rsa"
+	"net"
 	"net/http"
 	"time"
 
@@ -25,6 +26,7 @@ type HTTPServer struct {
 	Storage       storage.Storage
 	KeySign       string
 	RSAPrivateKey *rsa.PrivateKey
+	TrustedSubnet *net.IPNet
 }
 
 // NewServer создает новый http сервер.
@@ -32,6 +34,14 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 	httpserver := HTTPServer{
 		chiRouter: chi.NewRouter(),
 		KeySign:   cfg.KeySign,
+	}
+
+	if cfg.TrustedSubnet != "" {
+		_, trustedSubnet, err := net.ParseCIDR(cfg.TrustedSubnet)
+		if err != nil {
+			logger.Fatal("error parse subnet", err)
+		}
+		httpserver.TrustedSubnet = trustedSubnet
 	}
 
 	if cfg.RSAPrivateKey != "" {
@@ -143,6 +153,9 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 	// middleware gzip response
 	// s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
 
+	// middleware that sets a http.Request's RemoteAddr to the results
+	// of parsing either the True-Client-IP, X-Real-IP or the X-Forwarded-For headers
+	s.chiRouter.Use(middleware.RealIP)
 	// middleware decrypt body
 	s.chiRouter.Use(s.decryptRSABodyHandler)
 	// middleware unzip body
@@ -151,15 +164,13 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 	s.chiRouter.Get("/", s.listHandler)
 	s.chiRouter.Post("/", s.defaultHandler)
 	s.chiRouter.Route("/", func(r chi.Router) {
+		r.Use(s.trustedSubnetHandler)
 		r.Use(middleware.AllowContentType("application/json"))
 		r.Post("/value/", s.GetValueHandler)
 		r.Post("/update/", s.UpdateHandler)
 		r.Post("/updates/", s.UpdatesHandler)
 	})
 	s.chiRouter.Get("/ping", s.pingHandler)
-	// s.chiRouter.Post("/value/", s.GetValueHandler)
-	// s.chiRouter.Post("/update/", s.UpdateHandler)
-	// s.chiRouter.Post("/updates/", s.UpdatesHandler)
 	s.chiRouter.Mount("/debug", middleware.Profiler())
 
 	s.Server = &http.Server{
