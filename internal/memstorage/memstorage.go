@@ -21,6 +21,10 @@ func (m *MemStorage) Set(k string, v interface{}) error {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
+	if v == nil {
+		return fmt.Errorf("invalid value")
+	}
+
 	m.Metrics[k] = v
 
 	return nil

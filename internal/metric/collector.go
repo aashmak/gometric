@@ -1,36 +1,55 @@
 package metric
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 )
 
+type Metrics struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
+}
+
 type Collector struct {
 	Endpoint          string
 	ReportIntervalSec int
-	Metrics           map[string]interface{}
+	Metrics           []Metrics
 }
 
 func (c *Collector) RegisterMetric(name string, value interface{}) error {
 	if c.Metrics == nil {
-		c.Metrics = make(map[string]interface{})
+		c.Metrics = make([]Metrics, 0)
 	}
 
-	if _, ok := c.Metrics[name]; ok {
-		return fmt.Errorf("metric %s already exists", name)
+	for _, v := range c.Metrics {
+		if v.ID == name {
+			return fmt.Errorf("metric %s already exists", name)
+		}
+	}
+
+	tmp := Metrics{
+		ID: name,
 	}
 
 	switch v := value.(type) {
 	case *gauge:
-		c.Metrics[name] = value.(*gauge)
+		tmp.MType = "gauge"
+		tmp.Value = (*float64)(value.(*gauge))
 	case *counter:
-		c.Metrics[name] = value.(*counter)
+		tmp.MType = "counter"
+		tmp.Delta = (*int64)(value.(*counter))
 	default:
 		return fmt.Errorf("unknown metric type %v", v)
 	}
+
+	c.Metrics = append(c.Metrics, tmp)
 
 	return nil
 }
@@ -53,19 +72,14 @@ func (c *Collector) SendMetric(ctx context.Context) {
 
 		default:
 			go func() {
-				var url string
+				for _, v := range c.Metrics {
 
-				for key, value := range c.Metrics {
-					switch c.Metrics[key].(type) {
-					case *counter:
-						url = fmt.Sprintf("%s/counter/%s/%d", c.Endpoint, key, *value.(*counter))
-					case *gauge:
-						url = fmt.Sprintf("%s/gauge/%s/%.4f", c.Endpoint, key, *value.(*gauge))
-					default:
-						continue
+					ret, err := json.Marshal(v)
+					if err != nil {
+						log.Printf("Error: %s", err.Error())
 					}
 
-					err := MakeRequest(ctxSendMetric, client, url)
+					err = MakeRequest(ctxSendMetric, client, c.Endpoint, ret)
 					if err != nil {
 						log.Printf("Http request error: %s", err.Error())
 					}
@@ -77,13 +91,13 @@ func (c *Collector) SendMetric(ctx context.Context) {
 	}
 }
 
-func MakeRequest(ctx context.Context, client *http.Client, url string) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+func MakeRequest(ctx context.Context, client *http.Client, url string, body []byte) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("new request error: %s", err.Error())
 	}
 
-	request.Header.Add("Content-Type", "text/plain")
+	request.Header.Add("Content-Type", "application/json")
 
 	response, err := client.Do(request)
 	if err != nil {

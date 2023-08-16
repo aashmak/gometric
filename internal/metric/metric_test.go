@@ -1,6 +1,9 @@
 package metric
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestCollectorRegisterMetric(t *testing.T) {
 	m := &MemStats{
@@ -12,28 +15,28 @@ func TestCollectorRegisterMetric(t *testing.T) {
 
 	// register new gauge metric
 	err := collector.RegisterMetric("Alloc", &(m.Alloc))
-	if err != nil || *collector.Metrics["Alloc"].(*gauge) != 1.0000 {
+	if err != nil || ((float64)(*collector.Metrics[0].Value) != 1.0000 && (string)(collector.Metrics[0].MType) != "gauge") {
 		t.Errorf("error")
 	}
 
 	// register exist metric
 	(*m).Alloc = 2.0000
 	err = collector.RegisterMetric("Alloc", &(m.Alloc))
-	if err == nil || *collector.Metrics["Alloc"].(*gauge) != 2.0000 {
+	if err == nil || (float64)(*collector.Metrics[0].Value) != 2.0000 {
 		t.Errorf("error")
 	}
 
 	// register new counter metric
 	err = collector.RegisterMetric("PollCount", &(m.PollCount))
-	if err != nil || *collector.Metrics["PollCount"].(*counter) != 1 {
+	if err != nil || ((int64)(*collector.Metrics[1].Delta) != 1 && (string)(collector.Metrics[1].MType) != "counter") {
 		t.Errorf("error")
 	}
 
-	// register new int metric
-	newMetric := 1
+	// test to Marshal
+	jsonTestStr := "[{\"id\":\"Alloc\",\"type\":\"gauge\",\"value\":2},{\"id\":\"PollCount\",\"type\":\"counter\",\"delta\":1}]"
 
-	err = collector.RegisterMetric("New", &newMetric)
-	if err == nil {
+	ret, err := json.Marshal(collector.Metrics)
+	if err != nil || string(ret) != jsonTestStr {
 		t.Errorf("error")
 	}
 }

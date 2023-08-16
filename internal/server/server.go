@@ -2,16 +2,23 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"gometric/internal/storage"
+	"io"
 	"log"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 )
+
+type Metrics struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
+}
 
 type gauge float64
 type counter int64
@@ -54,24 +61,44 @@ func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
-	paths := strings.Split(r.URL.Path, "/")
-	l := len(paths)
 
-	if l >= 2 {
-		var metricType, metricName string
-		metricType, metricName = paths[(l-2)], paths[(l-1)]
+	if r.Header.Get("Content-Type") == "application/json" {
+		reqBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			fmt.Printf("server: could not read request body: %s\n", err)
+		}
 
-		v, err := s.Storage.Get(metricName)
+		var metric Metrics
+		if err := json.Unmarshal(reqBody, &metric); err != nil {
+			log.Printf("Error: %s", err.Error())
+			return
+		}
+
+		v, err := s.Storage.Get(metric.ID)
 		if err == nil {
-			switch metricType {
+			switch metric.MType {
 			case "gauge":
 				if gaugeType(v) {
-					w.Write([]byte(fmt.Sprintf("%f", v.(gauge))))
+					v1 := v.(gauge)
+					metric.Value = (*float64)(&v1)
+
+					ret, err := json.Marshal(v)
+					if err != nil {
+						log.Printf("Error: %s", err.Error())
+					}
+					w.Write(ret)
 					return
 				}
 			case "counter":
 				if counterType(v) {
-					w.Write([]byte(fmt.Sprintf("%d", v.(counter))))
+					v1 := v.(counter)
+					metric.Delta = (*int64)(&v1)
+
+					ret, err := json.Marshal(v)
+					if err != nil {
+						log.Printf("Error: %s", err.Error())
+					}
+					w.Write(ret)
 					return
 				}
 			}
@@ -82,36 +109,46 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
-	paths := strings.Split(r.URL.Path, "/")
-	l := len(paths)
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/json" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
-	if l >= 3 {
-		var metricType, metricName, metricValue string
-		metricType, metricName, metricValue = paths[(l-3)], paths[(l-2)], paths[(l-1)]
+	reqBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		fmt.Printf("server: could not read request body: %s\n", err)
+	}
 
-		switch metricType {
-		case "gauge":
-			f, _ := strconv.ParseFloat(metricValue, 64)
-			err := s.Storage.Set(metricName, gauge(f))
-			if err != nil {
-				w.WriteHeader(http.StatusForbidden)
-			}
-		case "counter":
-			c, _ := strconv.ParseInt(metricValue, 0, 64)
+	var metric Metrics
+	if err := json.Unmarshal(reqBody, &metric); err != nil {
+		log.Printf("Error: %s", err.Error())
+		return
+	}
 
-			// get previous counter value
-			prevCounter, err := s.Storage.Get(metricName)
-			if err != nil {
-				prevCounter = counter(0)
-			}
-			err = s.Storage.Set(metricName, counter(c)+prevCounter.(counter))
-			if err != nil {
-				w.WriteHeader(http.StatusForbidden)
+	switch metric.MType {
+	case "gauge":
+		if metric.ID != "" && metric.Value != nil {
+			err := s.Storage.Set(metric.ID, gauge(*metric.Value))
+			if err == nil {
+				w.WriteHeader(http.StatusOK)
+				return
 			}
 		}
+	case "counter":
+		// get previous counter value
+		prevCounter, err := s.Storage.Get(metric.ID)
+		if err != nil {
+			prevCounter = counter(0)
+		}
 
-		w.WriteHeader(http.StatusOK)
-		return
+		if metric.ID != "" && metric.Delta != nil {
+			err = s.Storage.Set(metric.ID, counter(*metric.Delta)+prevCounter.(counter))
+			if err == nil {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+		}
 	}
 
 	w.WriteHeader(http.StatusForbidden)
@@ -122,8 +159,8 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 	s.chiRouter.Route("/", func(router chi.Router) {
 		s.chiRouter.Get("/", s.listHandler)
 		s.chiRouter.Post("/", s.defaultHandler)
-		s.chiRouter.Get("/value/{metricType}/{metricName}", s.GetValueHandler)
-		s.chiRouter.Post("/update/{metricType}/{metricName}/{metricValue}", s.UpdateHandler)
+		s.chiRouter.Post("/value/", s.GetValueHandler)
+		s.chiRouter.Post("/update/", s.UpdateHandler)
 	})
 
 	s.Server = &http.Server{
