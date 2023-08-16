@@ -19,6 +19,7 @@ type Collector struct {
 	ReportIntervalSec int
 	Metrics           []metrics.Metrics
 	KeySign           []byte
+	RateLimit         int
 }
 
 func (c *Collector) RegisterMetric(name string, value interface{}) error {
@@ -49,6 +50,7 @@ func (c *Collector) RegisterMetric(name string, value interface{}) error {
 
 	c.Metrics = append(c.Metrics, tmp)
 
+	logger.Debug(fmt.Sprintf("metric %s registered successfully", name))
 	return nil
 }
 
@@ -59,36 +61,44 @@ func (c *Collector) SendMetric(ctx context.Context) {
 		Timeout: interval,
 	}
 
+	requestQueue := make(chan []byte, 50)
+
+	//Create worker pool
+	for i := 0; i < c.RateLimit; i++ {
+		workerID := i + 1
+		go func(workerID int, ctx context.Context, client *http.Client, url string, requestQueue <-chan []byte) {
+			for req := range requestQueue {
+				err := MakeRequest(ctx, client, c.Endpoint, req)
+				if err != nil {
+					logger.Error(fmt.Sprintf("[Worker #%d]", workerID), err)
+				} else {
+					logger.Debug(fmt.Sprintf("[Worker #%d] the request was executed successfully", workerID))
+				}
+			}
+		}(workerID, ctx, client, c.Endpoint, requestQueue)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
+			close(requestQueue)
 			logger.Info("SendMetric stopped")
 			return
 
 		default:
-			go func() {
-				var tmpMetrics []metrics.Metrics
-
+			for _, metric := range c.Metrics {
 				//sign if key is not empty
-				for _, v := range c.Metrics {
-					if !bytes.Equal(c.KeySign, []byte{}) {
-						v.Sign(c.KeySign)
-					}
-					tmpMetrics = append(tmpMetrics, v)
+				if !bytes.Equal(c.KeySign, []byte{}) {
+					metric.Sign(c.KeySign)
 				}
 
-				ret, err := json.Marshal(tmpMetrics)
+				metricJSON, err := json.Marshal(metric)
 				if err != nil {
 					logger.Error("", err)
-					return
+				} else {
+					requestQueue <- metricJSON
 				}
-
-				err = MakeRequest(ctx, client, c.Endpoint, ret)
-				if err != nil {
-					logger.Error("", err)
-				}
-				logger.Debug("the request was executed successfully")
-			}()
+			}
 		}
 
 		<-time.After(interval)
