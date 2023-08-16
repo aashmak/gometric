@@ -1,19 +1,26 @@
 package storage
 
-import "gometric/internal/memstorage"
+import (
+	"gometric/internal/memstorage"
+	"gometric/internal/postgres"
+)
 
 type Storage interface {
+	Open() error
+	Close() error
 	Set(k string, v interface{}) error
 	Get(k string) (interface{}, error)
 	List() []string
-	LoadDump() (map[string]interface{}, error)
-	SaveDump() error
-	Open() error
-	Close() error
-	SetStoreFile(filename string) error
-	SetSyncMode(mode bool)
 }
 
-func New() *memstorage.MemStorage {
-	return memstorage.NewMemStorage()
+func NewMemStorage(storeFile string, syncMode bool) *memstorage.MemStorage {
+	m := memstorage.NewMemStorage()
+	m.SetStoreFile(storeFile)
+	m.SetSyncMode(syncMode)
+
+	return m
+}
+
+func NewPostgresDB(dsn string) *postgres.Postgres {
+	return postgres.NewPostgresDB(dsn)
 }

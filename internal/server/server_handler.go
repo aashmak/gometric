@@ -3,10 +3,10 @@ package server
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"encoding/json"
 	"fmt"
 	"gometric/internal/metrics"
+	"gometric/internal/postgres"
 	"io"
 	"log"
 	"net/http"
@@ -23,9 +23,9 @@ func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 		v, err := s.Storage.Get(metricName)
 		if err == nil {
 			if gaugeType(v) {
-				varList += fmt.Sprintf("%s (type: gauge): %f<br>\n", metricName, v.(gauge))
+				varList += fmt.Sprintf("%s (type: gauge): %f<br>\n", metricName, v.(float64))
 			} else if counterType(v) {
-				varList += fmt.Sprintf("%s (type: counter): %d<br>\n", metricName, v.(counter))
+				varList += fmt.Sprintf("%s (type: counter): %d<br>\n", metricName, v.(int64))
 			}
 		}
 	}
@@ -57,7 +57,8 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 			switch metric.MType {
 			case "gauge":
 				if gaugeType(v) {
-					v1 := v.(gauge)
+					//v1 := v.(gauge)
+					v1 := v.(float64)
 					metric.Value = (*float64)(&v1)
 
 					//sign if key is not empty
@@ -75,7 +76,8 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			case "counter":
 				if counterType(v) {
-					v1 := v.(counter)
+					//v1 := v.(counter)
+					v1 := v.(int64)
 					metric.Delta = (*int64)(&v1)
 
 					//sign if key is not empty
@@ -128,7 +130,7 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	switch metric.MType {
 	case "gauge":
 		if metric.ID != "" && metric.Value != nil {
-			err := s.Storage.Set(metric.ID, gauge(*metric.Value))
+			err := s.Storage.Set(metric.ID, float64(*metric.Value))
 			if err == nil {
 				w.WriteHeader(http.StatusOK)
 				return
@@ -138,11 +140,11 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		// get previous counter value
 		prevCounter, err := s.Storage.Get(metric.ID)
 		if err != nil {
-			prevCounter = counter(0)
+			prevCounter = int64(0)
 		}
 
 		if metric.ID != "" && metric.Delta != nil {
-			err = s.Storage.Set(metric.ID, counter(*metric.Delta)+prevCounter.(counter))
+			err = s.Storage.Set(metric.ID, (*metric.Delta + prevCounter.(int64)))
 			if err == nil {
 				w.WriteHeader(http.StatusOK)
 				return
@@ -175,8 +177,8 @@ func unzipBodyHandler(next http.Handler) http.Handler {
 }
 
 func (s HTTPServer) pingHandler(w http.ResponseWriter, r *http.Request) {
-	if s.DB != nil {
-		if _, err := s.DB.Exec(context.Background(), "select 1"); err == nil {
+	if _, ok := s.Storage.(*postgres.Postgres); ok {
+		if err := s.Storage.(*postgres.Postgres).Ping(); err == nil {
 			w.WriteHeader(http.StatusOK)
 			return
 		}

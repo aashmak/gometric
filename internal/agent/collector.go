@@ -78,8 +78,6 @@ func (c *Collector) SendMetric(ctx context.Context) {
 						log.Printf("Error: %s", err.Error())
 					}
 
-					fmt.Printf("%v\n", string(ret))
-
 					err = MakeRequest(ctx, client, c.Endpoint, ret)
 					if err != nil {
 						log.Printf("Http request error: %s", err.Error())

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"gometric/internal/postgres"
 	"io"
 	"log"
 	"net/http"
@@ -58,12 +59,12 @@ func httpRequestGzip(ts *httptest.Server, method, path string, body []byte) (int
 }
 
 func TestVariableType(t *testing.T) {
-	var c counter
+	var c int64
 	if !counterType(c) {
 		t.Errorf("Error: Variable is counter type.")
 	}
 
-	var g gauge
+	var g float64
 	if !gaugeType(g) {
 		t.Errorf("Error: Variable is gauge type.")
 	}
@@ -206,6 +207,133 @@ func TestHTTPServer1(t *testing.T) {
 				}
 
 				statusCode, body = httpRequestGzip(ts, "POST", "/value/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
+		})
+	}
+}
+
+// run test with postgres db
+func TestHTTPServerWithDB(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := DefaultConfig()
+	cfg.DatabaseDSN = "postgresql://postgres:postgres@postgres:5432/praktikum"
+	s := NewTestServer(ctx, cfg)
+	s.Storage.(*postgres.Postgres).InitDB()
+	s.Storage.(*postgres.Postgres).Clear()
+
+	ts := httptest.NewServer(s.chiRouter)
+	defer ts.Close()
+	defer s.Storage.(*postgres.Postgres).Close()
+
+	tests := []struct {
+		name               string
+		action             string
+		requestBody        []byte
+		responseStatusCode int
+		responseBody       string
+	}{
+		{
+			name:               "update gauge #1",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","value":1907608}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "update gauge #2",
+			action:             "update",
+			requestBody:        []byte(`{"id":"BuckHashSys","type":"gauge","value":3877}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "update counter #3",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount","type":"counter","delta":1}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "update non gauge value #4",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","delta":1}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update non counter value #5",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount","type":"counter","value":2}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update unsupport type #6",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount","type":"integer","value":2}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update empty body #7",
+			action:             "update",
+			requestBody:        []byte(`{}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update empty body #8",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount"}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "get value gauge #1",
+			action:             "value",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"Alloc","type":"gauge","value":1907608}`,
+		},
+		{
+			name:               "get value counter #2",
+			action:             "value",
+			requestBody:        []byte(`{"id":"PollCount","type":"counter"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"PollCount","type":"counter","delta":1}`,
+		},
+		{
+			name:               "get unknown value #3",
+			action:             "value",
+			requestBody:        []byte(`{"id":"New","type":"counter"}`),
+			responseStatusCode: http.StatusNotFound,
+			responseBody:       "",
+		},
+		{
+			name:               "get unknown value #4",
+			action:             "value",
+			requestBody:        []byte(`{}`),
+			responseStatusCode: http.StatusNotFound,
+			responseBody:       "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.action == "update" {
+				statusCode, body := httpRequest(ts, "POST", "/update/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
+
+			if tt.action == "value" {
+				statusCode, body := httpRequest(ts, "POST", "/value/", tt.requestBody)
 				if statusCode != tt.responseStatusCode || body != tt.responseBody {
 					t.Errorf("Error")
 				}

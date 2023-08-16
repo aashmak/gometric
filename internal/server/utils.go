@@ -7,9 +7,9 @@ func getObjectType(i interface{}) string {
 }
 
 func gaugeType(i interface{}) bool {
-	return getObjectType(i) == "server.gauge"
+	return getObjectType(i) == "float64"
 }
 
 func counterType(i interface{}) bool {
-	return getObjectType(i) == "server.counter"
+	return getObjectType(i) == "int64"
 }
