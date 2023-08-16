@@ -148,3 +148,28 @@ func TestSaveLoadDump(t *testing.T) {
 		t.Errorf("Error: invalid data")
 	}
 }
+
+func BenchmarkStorage1(b *testing.B) {
+	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
+
+	for i := 0; i < b.N; i++ {
+		memStor.Set("abc", int(1))
+		memStor.Get("abc")
+	}
+}
+
+func BenchmarkSaveDump(b *testing.B) {
+	memStor := NewMemStorage()
+	memStor.Open()
+	defer memStor.Close()
+
+	memStor.Set("a", int(1))
+	memStor.Set("b", float64(3.14))
+	memStor.Set("c", "foo")
+
+	for i := 0; i < b.N; i++ {
+		memStor.SaveDump()
+	}
+}
