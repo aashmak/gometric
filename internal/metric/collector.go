@@ -48,18 +48,14 @@ func (c *Collector) SendMetric() {
 			continue
 
 		default:
-			fmt.Println("work...")
 			go func() {
 				for key, value := range c.Metrics {
 					switch c.Metrics[key].(type) {
 					case *counter:
 						url := fmt.Sprintf("%s/counter/%s/%d", c.Endpoint, key, *value.(*counter))
-						fmt.Println(url)
 						MakeRequest(ctx, client, url)
 					case *gauge:
 						url := fmt.Sprintf("%s/gauge/%s/%.4f", c.Endpoint, key, *value.(*gauge))
-						time.Sleep(2 * time.Second)
-						fmt.Println(url)
 						MakeRequest(ctx, client, url)
 					}
 				}
