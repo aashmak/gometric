@@ -9,6 +9,7 @@ type Storage interface {
 	Open() error
 	Close() error
 	Set(k string, v interface{}) error
+	MSet(data map[string]interface{}) error
 	Get(k string) (interface{}, error)
 	List() []string
 }

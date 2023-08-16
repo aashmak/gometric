@@ -73,6 +73,10 @@ func (m *MemStorage) Set(k string, v interface{}) error {
 	return nil
 }
 
+func (m *MemStorage) MSet(data map[string]interface{}) error {
+	return fmt.Errorf("invalid method")
+}
+
 func (m *MemStorage) Get(k string) (interface{}, error) {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()

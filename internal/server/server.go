@@ -118,6 +118,7 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 	s.chiRouter.Get("/ping", s.pingHandler)
 	s.chiRouter.Post("/value/", s.GetValueHandler)
 	s.chiRouter.Post("/update/", s.UpdateHandler)
+	s.chiRouter.Post("/updates/", s.UpdatesHandler)
 
 	s.Server = &http.Server{
 		Addr:    addr,

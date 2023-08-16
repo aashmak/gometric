@@ -67,21 +67,25 @@ func (c *Collector) SendMetric(ctx context.Context) {
 
 		default:
 			go func() {
+				var tmpMetrics []metrics.Metrics
+
+				//sign if key is not empty
 				for _, v := range c.Metrics {
-					//sign if key is not empty
 					if !bytes.Equal(c.KeySign, []byte{}) {
 						v.Sign(c.KeySign)
 					}
+					tmpMetrics = append(tmpMetrics, v)
+				}
 
-					ret, err := json.Marshal(v)
-					if err != nil {
-						log.Printf("Error: %s", err.Error())
-					}
+				ret, err := json.Marshal(tmpMetrics)
+				if err != nil {
+					log.Printf("Error: %s", err.Error())
+					return
+				}
 
-					err = MakeRequest(ctx, client, c.Endpoint, ret)
-					if err != nil {
-						log.Printf("Http request error: %s", err.Error())
-					}
+				err = MakeRequest(ctx, client, c.Endpoint, ret)
+				if err != nil {
+					log.Printf("Http request error: %s", err.Error())
 				}
 			}()
 		}
