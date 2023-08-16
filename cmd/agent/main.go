@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"gometric/internal/agent"
@@ -16,17 +17,6 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type Config struct {
-	EndpointAddr   string `long:"address" short:"a" env:"ADDRESS" default:"127.0.0.1:8080" description:"set remote metric collector"`
-	ReportInterval int    `long:"report_interval" short:"r" env:"REPORT_INTERVAL" default:"10" description:"set report interval"`
-	PollInterval   int    `long:"poll_interval" short:"p" env:"POLL_INTERVAL" default:"2" description:"set poll interval"`
-	KeySign        string `long:"key" short:"k" env:"KEY" description:"set key for signing"`
-	LogLevel       string `long:"log_level" env:"LOG_LEVEL" default:"info" description:"set log level"`
-	LogFile        string `long:"log_file" env:"LOG_FILE" default:"" description:"set log file"`
-	RateLimit      int    `long:"rate_limit" short:"l" env:"RATE_LIMIT" default:"1" description:"set rate limit"`
-	Version        bool   `long:"version" short:"v" description:"print current version"`
-}
-
 var (
 	buildVersion = "N/A"
 	buildDate    = "N/A"
@@ -34,7 +24,7 @@ var (
 )
 
 func main() {
-	var cfg Config
+	var cfg agent.Config
 
 	parser := flags.NewParser(&cfg, flags.HelpFlag)
 	if _, err := parser.Parse(); err != nil {
@@ -61,6 +51,11 @@ func main() {
 		exit(0)
 	}
 
+	if err := agent.ParseConfigFile(&cfg); err != nil {
+		fmt.Printf("parse config error: %+v\n", err)
+		exit(0)
+	}
+
 	// Init logger
 	logger.NewLogger(cfg.LogLevel, cfg.LogFile)
 	defer logger.Close()
@@ -68,8 +63,8 @@ func main() {
 	printVersion()
 	logger.Info("Agent started")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	wg := sync.WaitGroup{}
+	ctx, stop := context.WithCancel(context.Background())
 
 	// Run metric collector with pollInterval 2 sec
 	m := agent.MemStatCollector(ctx, cfg.PollInterval)
@@ -81,6 +76,7 @@ func main() {
 		ReportIntervalSec: cfg.ReportInterval,
 		KeySign:           cfg.KeySign,
 		RateLimit:         cfg.RateLimit,
+		RSAPublicKey:      cfg.RSAPublicKey,
 	}
 
 	// runtime metrics
@@ -124,12 +120,17 @@ func main() {
 	}
 
 	// send metrics
-	go collector.SendMetric(ctx)
+	go collector.SendMetric(ctx, &wg)
+	logger.Debug("SendMetric() started")
 
 	sigint := make(chan os.Signal, 1)
-	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	<-sigint
+	stop()
+
+	logger.Info("Shutting down gracefully...")
+	wg.Wait()
 
 	logger.Info("Agent stopped")
 }

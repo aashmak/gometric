@@ -50,6 +50,11 @@ func main() {
 		exit(0)
 	}
 
+	if err := server.ParseConfigFile(cfg); err != nil {
+		fmt.Printf("parse config error: %+v\n", err)
+		exit(0)
+	}
+
 	logger.NewLogger(cfg.LogLevel, cfg.LogFile)
 	defer logger.Close()
 
@@ -57,12 +62,12 @@ func main() {
 	defer cancel()
 
 	sigint := make(chan os.Signal, 1)
-	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
+	printVersion()
 	serv := server.NewServer(ctx, cfg)
 	go serv.ListenAndServe(cfg.ListenAddr)
 
-	printVersion()
 	logger.Info("Server started")
 
 	<-sigint

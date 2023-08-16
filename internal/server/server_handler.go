@@ -1,12 +1,14 @@
 package server
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
+	"gometric/internal/crypto"
 	"gometric/internal/logger"
 	"gometric/internal/metrics"
 	"gometric/internal/postgres"
@@ -236,6 +238,36 @@ func unzipBodyHandler(next http.Handler) http.Handler {
 			defer reader.Close()
 
 			r.Body = io.NopCloser(reader)
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// decryptRSABodyHandler используется для расшифровки тела запроса с помощью RSA private-key.
+func (s HTTPServer) decryptRSABodyHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contentEncodingValues := r.Header.Values("Content-Encrypt")
+
+		if contentEncodingContains(contentEncodingValues, "rsa") {
+			r.Header.Del("Content-Encrypt")
+
+			encryptBody, err := io.ReadAll(r.Body)
+			if err != nil {
+				logger.Error("server could not read request body", err)
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+
+			decryptBody, err := crypto.Decrypt(s.RSAPrivateKey, bytes.NewBuffer(encryptBody))
+			if err != nil {
+				logger.Error("request decrypted is failed", err)
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			logger.Debug("request decrypted successfully")
+
+			r.Body = io.NopCloser(bytes.NewBuffer(decryptBody))
 		}
 
 		next.ServeHTTP(w, r)
