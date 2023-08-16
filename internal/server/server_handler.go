@@ -1,6 +1,7 @@
 package server
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,6 +26,8 @@ func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	w.Header().Set("Content-Type", "text/html")
 
 	fmt.Fprintf(w, "<html>\n<title>Metric Dump</title>\n"+
 		"<body>\n<h2>Metric Dump</h2>\n"+
@@ -58,6 +61,7 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 					if err != nil {
 						log.Printf("Error: %s", err.Error())
 					}
+					w.Header().Set("Content-Type", "application/json")
 					w.Write(ret)
 					return
 				}
@@ -70,6 +74,7 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 					if err != nil {
 						log.Printf("Error: %s", err.Error())
 					}
+					w.Header().Set("Content-Type", "application/json")
 					w.Write(ret)
 					return
 				}
@@ -81,6 +86,7 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		w.WriteHeader(http.StatusForbidden)
@@ -124,4 +130,25 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusForbidden)
+}
+
+func unzipBodyHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Encoding") == "gzip" {
+			reader, err := gzip.NewReader(r.Body)
+			if err != nil {
+				http.Error(
+					w,
+					http.StatusText(http.StatusInternalServerError),
+					http.StatusInternalServerError,
+				)
+				return
+			}
+			defer reader.Close()
+
+			r.Body = io.NopCloser(reader)
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
