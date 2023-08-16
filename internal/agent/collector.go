@@ -6,10 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gometric/internal/logger"
 	"io"
 	"net/http"
 	"time"
+
+	"gometric/internal/logger"
 
 	"gometric/internal/metrics"
 )

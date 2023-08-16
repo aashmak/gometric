@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gometric/internal/agent"
-	"gometric/internal/logger"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"gometric/internal/agent"
+	"gometric/internal/logger"
 
 	"github.com/caarlos0/env/v7"
 	"github.com/jessevdk/go-flags"

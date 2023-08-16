@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"errors"
-	"gometric/internal/logger"
-	"gometric/internal/server"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"gometric/internal/logger"
+	"gometric/internal/server"
 
 	"github.com/caarlos0/env"
 	"github.com/jessevdk/go-flags"

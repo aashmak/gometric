@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"gometric/internal/postgres"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"gometric/internal/postgres"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
