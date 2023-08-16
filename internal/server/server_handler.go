@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"gometric/internal/metrics"
 	"io"
 	"log"
 	"net/http"
@@ -43,7 +45,7 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("server: could not read request body: %s\n", err)
 		}
 
-		var metric Metrics
+		var metric metrics.Metrics
 		if err := json.Unmarshal(reqBody, &metric); err != nil {
 			log.Printf("Error: %s", err.Error())
 			return
@@ -57,7 +59,12 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 					v1 := v.(gauge)
 					metric.Value = (*float64)(&v1)
 
-					ret, err := json.Marshal(v)
+					//sign if key is not empty
+					if !bytes.Equal(s.KeySign, []byte{}) {
+						metric.Sign(s.KeySign)
+					}
+
+					ret, err := json.Marshal(metric)
 					if err != nil {
 						log.Printf("Error: %s", err.Error())
 					}
@@ -70,7 +77,12 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 					v1 := v.(counter)
 					metric.Delta = (*int64)(&v1)
 
-					ret, err := json.Marshal(v)
+					//sign if key is not empty
+					if !bytes.Equal(s.KeySign, []byte{}) {
+						metric.Sign(s.KeySign)
+					}
+
+					ret, err := json.Marshal(metric)
 					if err != nil {
 						log.Printf("Error: %s", err.Error())
 					}
@@ -98,10 +110,18 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("server: could not read request body: %s\n", err)
 	}
 
-	var metric Metrics
+	var metric metrics.Metrics
 	if err := json.Unmarshal(reqBody, &metric); err != nil {
 		log.Printf("Error: %s", err.Error())
 		return
+	}
+
+	// ValidMAC if key is not epmty
+	if !bytes.Equal(s.KeySign, []byte{}) {
+		if !metric.ValidMAC(s.KeySign) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 
 	switch metric.MType {

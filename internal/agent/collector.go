@@ -1,4 +1,4 @@
-package metric
+package agent
 
 import (
 	"bytes"
@@ -10,24 +10,20 @@ import (
 	"log"
 	"net/http"
 	"time"
-)
 
-type Metrics struct {
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
-	Delta *int64   `json:"delta,omitempty"`
-	Value *float64 `json:"value,omitempty"`
-}
+	"gometric/internal/metrics"
+)
 
 type Collector struct {
 	Endpoint          string
 	ReportIntervalSec int
-	Metrics           []Metrics
+	Metrics           []metrics.Metrics
+	KeySign           []byte
 }
 
 func (c *Collector) RegisterMetric(name string, value interface{}) error {
 	if c.Metrics == nil {
-		c.Metrics = make([]Metrics, 0)
+		c.Metrics = make([]metrics.Metrics, 0)
 	}
 
 	for _, v := range c.Metrics {
@@ -36,7 +32,7 @@ func (c *Collector) RegisterMetric(name string, value interface{}) error {
 		}
 	}
 
-	tmp := Metrics{
+	tmp := metrics.Metrics{
 		ID: name,
 	}
 
@@ -72,10 +68,17 @@ func (c *Collector) SendMetric(ctx context.Context) {
 		default:
 			go func() {
 				for _, v := range c.Metrics {
+					//sign if key is not empty
+					if !bytes.Equal(c.KeySign, []byte{}) {
+						v.Sign(c.KeySign)
+					}
+
 					ret, err := json.Marshal(v)
 					if err != nil {
 						log.Printf("Error: %s", err.Error())
 					}
+
+					fmt.Printf("%v\n", string(ret))
 
 					err = MakeRequest(ctx, client, c.Endpoint, ret)
 					if err != nil {

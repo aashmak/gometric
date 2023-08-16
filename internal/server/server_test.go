@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func testRequest(t *testing.T, ts *httptest.Server, method, path string, body []byte) (int, string) {
+func httpRequest(ts *httptest.Server, method, path string, body []byte) (int, string) {
 	req, _ := http.NewRequest(method, ts.URL+path, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -24,7 +24,7 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body []
 	return resp.StatusCode, string(respBody)
 }
 
-func testRequestGzip(t *testing.T, ts *httptest.Server, method, path string, body []byte) (int, string) {
+func httpRequestGzip(ts *httptest.Server, method, path string, body []byte) (int, string) {
 	var b bytes.Buffer
 
 	g := gzip.NewWriter(&b)
@@ -69,12 +69,7 @@ func TestVariableType(t *testing.T) {
 	}
 }
 
-// test without gzip
-func TestChiRouter(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	cfg := DefaultConfig()
+func NewTestServer(ctx context.Context, cfg *Config) *HTTPServer {
 	s := NewServer(ctx, cfg)
 	s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
 	s.chiRouter.Use(unzipBodyHandler)
@@ -83,186 +78,214 @@ func TestChiRouter(t *testing.T) {
 	s.chiRouter.Post("/value/", s.GetValueHandler)
 	s.chiRouter.Post("/update/", s.UpdateHandler)
 
-	var reqBody []byte
-	var body string
-	var statusCode int
+	return s
+}
+
+// test server without hash
+func TestHTTPServer1(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := DefaultConfig()
+	s := NewTestServer(ctx, cfg)
 
 	ts := httptest.NewServer(s.chiRouter)
 	defer ts.Close()
 
-	statusCode, _ = testRequest(t, ts, "GET", "/", nil)
-	if statusCode != http.StatusOK {
-		t.Errorf("Error")
+	tests := []struct {
+		name               string
+		action             string
+		requestBody        []byte
+		responseStatusCode int
+		responseBody       string
+	}{
+		{
+			name:               "update gauge #1",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","value":1907608}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "update gauge #2",
+			action:             "update",
+			requestBody:        []byte(`{"id":"BuckHashSys","type":"gauge","value":3877}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "update counter #3",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount","type":"counter","delta":1}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "update non gauge value #4",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","delta":1}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update non counter value #5",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount","type":"counter","value":2}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update unsupport type #6",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount","type":"integer","value":2}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update empty body #7",
+			action:             "update",
+			requestBody:        []byte(`{}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update empty body #8",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount"}`),
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "get value gauge #1",
+			action:             "value",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"Alloc","type":"gauge","value":1907608}`,
+		},
+		{
+			name:               "get value counter #2",
+			action:             "value",
+			requestBody:        []byte(`{"id":"PollCount","type":"counter"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"PollCount","type":"counter","delta":2}`,
+		},
+		{
+			name:               "get unknown value #3",
+			action:             "value",
+			requestBody:        []byte(`{"id":"New","type":"counter"}`),
+			responseStatusCode: http.StatusNotFound,
+			responseBody:       "",
+		},
+		{
+			name:               "get unknown value #4",
+			action:             "value",
+			requestBody:        []byte(`{}`),
+			responseStatusCode: http.StatusNotFound,
+			responseBody:       "",
+		},
 	}
 
-	statusCode, _ = testRequest(t, ts, "POST", "/", nil)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.action == "update" {
+				statusCode, body := httpRequest(ts, "POST", "/update/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
 
-	// test update gauge
-	reqBody = []byte("{\"id\":\"Alloc\",\"type\":\"gauge\",\"value\":100}")
-	statusCode, _ = testRequest(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusOK {
-		t.Errorf("Error")
-	}
+				statusCode, body = httpRequestGzip(ts, "POST", "/update/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
 
-	// test get gauge
-	reqBody = []byte("{\"id\":\"Alloc\",\"type\":\"gauge\"}")
-	statusCode, body = testRequest(t, ts, "POST", "/value/", reqBody)
-	if statusCode != http.StatusOK || body != "100" {
-		t.Errorf("Error")
-	}
+			if tt.action == "value" {
+				statusCode, body := httpRequest(ts, "POST", "/value/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
 
-	// test insupported type
-	reqBody = []byte("{\"id\":\"Alloc\",\"type\":\"counter\"}")
-	statusCode, _ = testRequest(t, ts, "POST", "/value/", reqBody)
-	if statusCode != http.StatusNotFound {
-		t.Errorf("Error")
-	}
-
-	// test update counter
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"counter\",\"delta\":1}")
-	statusCode, _ = testRequest(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusOK {
-		t.Errorf("Error")
-	}
-
-	// test get counter
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"counter\"}")
-	statusCode, body = testRequest(t, ts, "POST", "/value/", reqBody)
-	if statusCode != http.StatusOK || body != "1" {
-		t.Errorf("Error")
-	}
-
-	// test insupported type
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"gauge\"}")
-	statusCode, _ = testRequest(t, ts, "POST", "/value/", reqBody)
-	if statusCode != http.StatusNotFound {
-		t.Errorf("Error")
-	}
-
-	// === test invalid counter ===
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"counter\"}")
-	statusCode, _ = testRequest(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
-	}
-
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"counter111\"}")
-	statusCode, _ = testRequest(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
-	}
-
-	reqBody = []byte("{}")
-	statusCode, _ = testRequest(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
-	}
-
-	reqBody = []byte("{\"id\":\"\",\"type\":\"counter\",\"delta\":1}")
-	statusCode, _ = testRequest(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
+				statusCode, body = httpRequestGzip(ts, "POST", "/value/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
+		})
 	}
 }
 
-// test with gzip
-func TestChiRouterGzip(t *testing.T) {
+// test server with hash
+func TestHTTPServerHash(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	cfg := DefaultConfig()
-	s := NewServer(ctx, cfg)
-	s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
-	s.chiRouter.Use(unzipBodyHandler)
-	s.chiRouter.Get("/", s.listHandler)
-	s.chiRouter.Post("/", s.defaultHandler)
-	s.chiRouter.Post("/value/", s.GetValueHandler)
-	s.chiRouter.Post("/update/", s.UpdateHandler)
+	cfg.KeySign = "secret"
 
-	var reqBody []byte
-	var body string
-	var statusCode int
+	s := NewTestServer(ctx, cfg)
 
 	ts := httptest.NewServer(s.chiRouter)
 	defer ts.Close()
 
-	statusCode, _ = testRequestGzip(t, ts, "GET", "/", nil)
-	if statusCode != http.StatusOK {
-		t.Errorf("Error")
+	tests := []struct {
+		name               string
+		action             string
+		requestBody        []byte
+		responseStatusCode int
+		responseBody       string
+	}{
+		{
+			name:               "update gauge #1",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","value":226640,"hash":"3544777d62d524efaacb5eae93073cb716251bff20490e6e5c266376dc002f3e"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "update counter #2",
+			action:             "update",
+			requestBody:        []byte(`{"id":"PollCount","type":"counter","delta":1,"hash":"ce97c6062da4477a5fad4cfdd24f0f24e474d309b1f054928dd138683d1cab12"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "get value counter #3",
+			action:             "value",
+			requestBody:        []byte(`{"id":"PollCount","type":"counter"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"PollCount","type":"counter","delta":1,"hash":"ce97c6062da4477a5fad4cfdd24f0f24e474d309b1f054928dd138683d1cab12"}`,
+		},
+		{
+			name:               "get value gauge #4",
+			action:             "value",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge"}`),
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"Alloc","type":"gauge","value":226640,"hash":"3544777d62d524efaacb5eae93073cb716251bff20490e6e5c266376dc002f3e"}`,
+		},
+		{
+			name:               "update incorrect hash #5",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","value":226640,"hash":"3544777d62d524efaacb5eae93073cb716251bff20490e6e5c266376dc000000"}`),
+			responseStatusCode: http.StatusBadRequest,
+			responseBody:       "",
+		},
 	}
 
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/", nil)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.action == "update" {
+				statusCode, body := httpRequest(ts, "POST", "/update/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
 
-	// test update gauge
-	reqBody = []byte("{\"id\":\"Alloc\",\"type\":\"gauge\",\"value\":100}")
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusOK {
-		t.Errorf("Error")
-	}
-
-	// test get gauge
-	reqBody = []byte("{\"id\":\"Alloc\",\"type\":\"gauge\"}")
-	statusCode, body = testRequestGzip(t, ts, "POST", "/value/", reqBody)
-	if statusCode != http.StatusOK || body != "100" {
-		t.Errorf("Error")
-	}
-
-	// test insupported type
-	reqBody = []byte("{\"id\":\"Alloc\",\"type\":\"counter\"}")
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/value/", reqBody)
-	if statusCode != http.StatusNotFound {
-		t.Errorf("Error")
-	}
-
-	// test update counter
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"counter\",\"delta\":1}")
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusOK {
-		t.Errorf("Error")
-	}
-
-	// test get counter
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"counter\"}")
-	statusCode, body = testRequestGzip(t, ts, "POST", "/value/", reqBody)
-	if statusCode != http.StatusOK || body != "1" {
-		t.Errorf("Error")
-	}
-
-	// test insupported type
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"gauge\"}")
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/value/", reqBody)
-	if statusCode != http.StatusNotFound {
-		t.Errorf("Error")
-	}
-
-	// === test invalid counter ===
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"counter\"}")
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
-	}
-
-	reqBody = []byte("{\"id\":\"PollCount\",\"type\":\"counter111\"}")
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
-	}
-
-	reqBody = []byte("{}")
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
-	}
-
-	reqBody = []byte("{\"id\":\"\",\"type\":\"counter\",\"delta\":1}")
-	statusCode, _ = testRequestGzip(t, ts, "POST", "/update/", reqBody)
-	if statusCode != http.StatusForbidden {
-		t.Errorf("Error")
+			if tt.action == "value" {
+				statusCode, body := httpRequest(ts, "POST", "/value/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
+		})
 	}
 }
