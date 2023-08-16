@@ -6,6 +6,7 @@ type Config struct {
 	StoreFile     string `long:"store_file" short:"f" env:"STORE_FILE" default:"/tmp/devops-metrics-db.json" description:"set store file"`
 	Restore       bool   `long:"restore" short:"r" env:"RESTORE" description:"autorestore from file"`
 	KeySign       string `long:"key" short:"k" env:"KEY" description:"set key for signing"`
+	DatabaseDSN   string `long:"database" short:"d" env:"DATABASE_DSN" description:"set database dsn"`
 }
 
 func DefaultConfig() *Config {
