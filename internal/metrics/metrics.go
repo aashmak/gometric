@@ -19,7 +19,7 @@ type Metrics struct {
 
 // ValidMAC проверяет подпись.
 // Переподписывает с помощью ключа и сравнивает полученный Hash с существующим.
-func (m *Metrics) ValidMAC(key []byte) bool {
+func (m *Metrics) ValidMAC(key string) bool {
 	var (
 		mac1 []byte
 		mac2 []byte
@@ -39,9 +39,9 @@ func (m *Metrics) ValidMAC(key []byte) bool {
 }
 
 // GetSign подписывает с помощью ключа, возвращая значение Hash
-func (m *Metrics) GetSign(key []byte) ([]byte, error) {
+func (m *Metrics) GetSign(key string) ([]byte, error) {
 	var (
-		message []byte
+		message string
 		sign    []byte
 	)
 
@@ -50,13 +50,13 @@ func (m *Metrics) GetSign(key []byte) ([]byte, error) {
 		if m.Value == nil {
 			return nil, fmt.Errorf("invalid value")
 		}
-		message = []byte(fmt.Sprintf("%s:gauge:%f", m.ID, *m.Value))
+		message = fmt.Sprintf("%s:gauge:%f", m.ID, *m.Value)
 
 	case "counter":
 		if m.Delta == nil {
 			return nil, fmt.Errorf("invalid value")
 		}
-		message = []byte(fmt.Sprintf("%s:counter:%d", m.ID, *m.Delta))
+		message = fmt.Sprintf("%s:counter:%d", m.ID, *m.Delta)
 	}
 
 	sign, err := Sign(message, key)
@@ -68,7 +68,7 @@ func (m *Metrics) GetSign(key []byte) ([]byte, error) {
 }
 
 // Sign подписывает с помощью ключа, сохраняя значение в Hash
-func (m *Metrics) Sign(key []byte) error {
+func (m *Metrics) Sign(key string) error {
 	sign, err := m.GetSign(key)
 	if err != nil {
 		return err
@@ -79,9 +79,10 @@ func (m *Metrics) Sign(key []byte) error {
 }
 
 // Sign подписывает с помощью ключа, возвращая Hash
-func Sign(message, key []byte) ([]byte, error) {
-	mac := hmac.New(sha256.New, key)
-	_, err := mac.Write(message)
+func Sign(message, key string) ([]byte, error) {
+
+	mac := hmac.New(sha256.New, []byte(key))
+	_, err := mac.Write([]byte(message))
 	if err != nil {
 		return nil, err
 	}

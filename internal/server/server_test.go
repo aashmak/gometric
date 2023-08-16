@@ -12,6 +12,7 @@ import (
 
 	"gometric/internal/postgres"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
@@ -93,9 +94,17 @@ func NewTestServer(ctx context.Context, cfg *Config) *HTTPServer {
 	s.chiRouter.Use(unzipBodyHandler)
 	s.chiRouter.Get("/", s.listHandler)
 	s.chiRouter.Post("/", s.defaultHandler)
-	s.chiRouter.Post("/value/", s.GetValueHandler)
-	s.chiRouter.Post("/update/", s.UpdateHandler)
-	s.chiRouter.Post("/updates/", s.UpdatesHandler)
+	s.chiRouter.Route("/", func(r chi.Router) {
+		r.Use(middleware.AllowContentType("application/json"))
+		r.Post("/value/", s.GetValueHandler)
+		r.Post("/update/", s.UpdateHandler)
+		r.Post("/updates/", s.UpdatesHandler)
+	})
+
+	//s.chiRouter.Post("/value/", s.GetValueHandler)
+	//s.chiRouter.Post("/update/", s.UpdateHandler)
+	//s.chiRouter.Post("/updates/", s.UpdatesHandler)
+	//s.chiRouter.Route("/value/")
 
 	return s
 }

@@ -75,7 +75,7 @@ func (p *Postgres) Set(k string, v interface{}) error {
 
 // MSet устанавливает несколько ключей одновременно, заменяяя существующие значения, аналогично SET.
 func (p *Postgres) MSet(data map[string]interface{}) error {
-	//check valid data
+	// check valid data
 	for k, v := range data {
 		if k == "" || v == nil {
 			return fmt.Errorf("key or value no must be empty")

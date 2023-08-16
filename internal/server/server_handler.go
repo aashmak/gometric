@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -44,85 +43,76 @@ func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 // GetValueHandler извлекает метрики из key-value бэкенда и отсылает в формате json.
 // Функция также подписывает сообщение перед отправкой с помощью функции Sign().
 func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
+	reqBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		logger.Error("server could not read request body", err)
+	}
+	logger.Debug("request Body: " + string(reqBody))
 
-	if r.Header.Get("Content-Type") == "application/json" {
-		reqBody, err := io.ReadAll(r.Body)
-		if err != nil {
-			logger.Error("server could not read request body", err)
-		}
-		logger.Debug("request Body: " + string(reqBody))
+	var metric metrics.Metrics
+	if err = json.Unmarshal(reqBody, &metric); err != nil {
+		logger.Error("", err)
+		return
+	}
+	logger.Debug(fmt.Sprintf("unmarshall succefull: %v", metric))
 
-		var metric metrics.Metrics
-		if err := json.Unmarshal(reqBody, &metric); err != nil {
-			logger.Error("", err)
+	v, err := s.Storage.Get(metric.ID)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	switch metric.MType {
+	case "gauge":
+		if gaugeType(v) {
+			v1 := v.(float64)
+			metric.Value = (*float64)(&v1)
+
+			// sign if key is not empty
+			if s.KeySign != "" {
+				metric.Sign(s.KeySign)
+			}
+
+			ret, err := json.Marshal(metric)
+			if err != nil {
+				logger.Error("", err)
+				return
+			}
+			logger.Debug(fmt.Sprintf("marshall succefull: %s", ret))
+
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(ret)
 			return
 		}
-		logger.Debug(fmt.Sprintf("unmarshall succefull: %v", metric))
+	case "counter":
+		if counterType(v) {
+			v1 := v.(int64)
+			metric.Delta = (*int64)(&v1)
 
-		v, err := s.Storage.Get(metric.ID)
-		if err == nil {
-			switch metric.MType {
-			case "gauge":
-				if gaugeType(v) {
-					v1 := v.(float64)
-					metric.Value = (*float64)(&v1)
-
-					//sign if key is not empty
-					if !bytes.Equal(s.KeySign, []byte{}) {
-						metric.Sign(s.KeySign)
-					}
-
-					ret, err := json.Marshal(metric)
-					if err != nil {
-						logger.Error("", err)
-						return
-					}
-					logger.Debug(fmt.Sprintf("marshall succefull: %s", ret))
-
-					w.Header().Set("Content-Type", "application/json")
-					w.Write(ret)
-					return
-				}
-			case "counter":
-				if counterType(v) {
-					v1 := v.(int64)
-					metric.Delta = (*int64)(&v1)
-
-					//sign if key is not empty
-					if !bytes.Equal(s.KeySign, []byte{}) {
-						metric.Sign(s.KeySign)
-					}
-
-					ret, err := json.Marshal(metric)
-					if err != nil {
-						logger.Error("", err)
-						return
-					}
-					logger.Debug(fmt.Sprintf("marshall succefull: %s", ret))
-
-					w.Header().Set("Content-Type", "application/json")
-					w.Write(ret)
-					return
-				}
+			// sign if key is not empty
+			if s.KeySign != "" {
+				metric.Sign(s.KeySign)
 			}
+
+			ret, err := json.Marshal(metric)
+			if err != nil {
+				logger.Error("", err)
+				return
+			}
+			logger.Debug(fmt.Sprintf("marshall succefull: %s", ret))
+
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(ret)
+			return
 		}
 	}
 
-	logger.Debug("response status is NotFound")
 	w.WriteHeader(http.StatusNotFound)
 }
 
 // UpdateHandler принимает метрики в формате json и сохраняет в key-value бэкенд.
 // Функция также проверяет подпись с помощью ValidMAC().
 func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
-
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/json" {
-		logger.Debug("content type is not application/json")
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		logger.Error("server could not read request body", err)
@@ -135,7 +125,7 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ValidMAC if key is not epmty
-	if !bytes.Equal(s.KeySign, []byte{}) {
+	if s.KeySign != "" {
 		if !metric.ValidMAC(s.KeySign) {
 			logger.Debug("invalid HMAC of the data")
 			w.WriteHeader(http.StatusBadRequest)
@@ -173,14 +163,6 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
-
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/json" {
-		logger.Debug("content type is not application/json")
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		logger.Error("server could not read request body", err)
@@ -189,7 +171,7 @@ func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var metrics []metrics.Metrics
-	if err := json.Unmarshal(reqBody, &metrics); err != nil {
+	if err = json.Unmarshal(reqBody, &metrics); err != nil {
 		logger.Error("", err)
 		return
 	}
@@ -198,7 +180,7 @@ func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 
 	for _, metric := range metrics {
 		// ValidMAC if key is not epmty
-		if !bytes.Equal(s.KeySign, []byte{}) {
+		if s.KeySign != "" {
 			if !metric.ValidMAC(s.KeySign) {
 				logger.Debug("invalid HMAC of the data")
 				w.WriteHeader(http.StatusForbidden)
@@ -214,7 +196,8 @@ func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 
 		case "counter":
 			// get previous counter value
-			prevCounter, err := s.Storage.Get(metric.ID)
+			var prevCounter interface{}
+			prevCounter, err = s.Storage.Get(metric.ID)
 			if err != nil {
 				prevCounter = int64(0)
 			}

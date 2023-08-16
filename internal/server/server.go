@@ -16,22 +16,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type gauge float64
-type counter int64
-
 // HTTPServer описывает структуру сервера.
 type HTTPServer struct {
 	Server    *http.Server
 	chiRouter chi.Router
 	Storage   storage.Storage
-	KeySign   []byte
+	KeySign   string
 }
 
 // NewServer создает новый http сервер.
 func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 	httpserver := HTTPServer{
 		chiRouter: chi.NewRouter(),
-		KeySign:   []byte(cfg.KeySign),
+		KeySign:   cfg.KeySign,
 	}
 
 	if cfg.DatabaseDSN != "" {
@@ -132,17 +129,23 @@ func (s HTTPServer) StoreHandler(ctx context.Context, storeInterval int) {
 func (s *HTTPServer) ListenAndServe(addr string) {
 
 	// middleware gzip response
-	//s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
+	// s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
 
 	// middleware unzip request
 	s.chiRouter.Use(unzipBodyHandler)
 
 	s.chiRouter.Get("/", s.listHandler)
 	s.chiRouter.Post("/", s.defaultHandler)
+	s.chiRouter.Route("/", func(r chi.Router) {
+		r.Use(middleware.AllowContentType("application/json"))
+		r.Post("/value/", s.GetValueHandler)
+		r.Post("/update/", s.UpdateHandler)
+		r.Post("/updates/", s.UpdatesHandler)
+	})
 	s.chiRouter.Get("/ping", s.pingHandler)
-	s.chiRouter.Post("/value/", s.GetValueHandler)
-	s.chiRouter.Post("/update/", s.UpdateHandler)
-	//s.chiRouter.Post("/updates/", s.UpdatesHandler)
+	// s.chiRouter.Post("/value/", s.GetValueHandler)
+	// s.chiRouter.Post("/update/", s.UpdateHandler)
+	// s.chiRouter.Post("/updates/", s.UpdatesHandler)
 	s.chiRouter.Mount("/debug", middleware.Profiler())
 
 	s.Server = &http.Server{
