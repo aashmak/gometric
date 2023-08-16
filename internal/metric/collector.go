@@ -57,17 +57,14 @@ func (c *Collector) RegisterMetric(name string, value interface{}) error {
 }
 
 func (c *Collector) SendMetric(ctx context.Context) {
-
 	var interval = time.Duration(c.ReportIntervalSec) * time.Second
-	client := &http.Client{}
+
+	client := &http.Client{
+		Timeout: interval,
+	}
 
 	for {
-		ctxSendMetric, cancel := context.WithTimeout(ctx, interval)
-		defer cancel()
-
 		select {
-		case <-ctxSendMetric.Done():
-			continue
 		case <-ctx.Done():
 			log.Print("SendMetric stopped")
 			return
@@ -75,13 +72,12 @@ func (c *Collector) SendMetric(ctx context.Context) {
 		default:
 			go func() {
 				for _, v := range c.Metrics {
-
 					ret, err := json.Marshal(v)
 					if err != nil {
 						log.Printf("Error: %s", err.Error())
 					}
 
-					err = MakeRequest(ctxSendMetric, client, c.Endpoint, ret)
+					err = MakeRequest(ctx, client, c.Endpoint, ret)
 					if err != nil {
 						log.Printf("Http request error: %s", err.Error())
 					}

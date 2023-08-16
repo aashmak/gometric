@@ -12,6 +12,7 @@ import (
 type MemStorage struct {
 	Mutex     sync.Mutex
 	StoreFile string
+	File      *os.File
 	SyncMode  bool
 	Metrics   map[string]interface{}
 }
@@ -36,6 +37,20 @@ func (m *MemStorage) SetStoreFile(filename string) error {
 	m.StoreFile = filename
 
 	return nil
+}
+
+func (m *MemStorage) Open() error {
+	file, err := os.OpenFile(m.StoreFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	if err != nil {
+		return err
+	}
+
+	m.File = file
+	return nil
+}
+
+func (m *MemStorage) Close() error {
+	return m.File.Close()
 }
 
 func (m *MemStorage) Set(k string, v interface{}) error {

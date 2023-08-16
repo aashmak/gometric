@@ -41,6 +41,8 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 		httpserver.Storage.SetSyncMode(true)
 	}
 
+	httpserver.Storage.Open()
+
 	return &httpserver
 }
 
@@ -113,6 +115,10 @@ func (s *HTTPServer) Shutdown() {
 	defer cancel()
 
 	if err := s.Server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server Shutdown Failed:%+v", err)
+		log.Fatalf("Server shutdown failed:%+v", err)
+	}
+
+	if err := s.Storage.Close(); err != nil {
+		log.Fatalf("Server storage close is failed:%+v", err)
 	}
 }

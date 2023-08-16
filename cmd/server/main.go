@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gometric/internal/server"
 	"log"
@@ -17,15 +18,16 @@ func main() {
 	cfg := server.DefaultConfig()
 
 	parser := flags.NewParser(cfg, flags.HelpFlag)
-	_, err := parser.Parse()
-	if err != nil {
-		if e, ok := err.(*flags.Error); ok {
+	if _, err := parser.Parse(); err != nil {
+		var e *flags.Error
+
+		if errors.As(err, &e) {
 			if e.Type == flags.ErrHelp {
 				fmt.Printf("%s", e.Message)
 				os.Exit(0)
 			}
 		}
-		log.Fatalf("Error parse environment:%+v\n", err)
+		log.Fatalf("error parse arguments:%+v\n", err)
 	}
 
 	//The values of the config is overridden
