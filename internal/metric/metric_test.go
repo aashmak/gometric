@@ -30,9 +30,9 @@ func TestCollectorRegisterMetric(t *testing.T) {
 	}
 
 	// register new int metric
-	var new_metric int
-	new_metric = 1
-	err = collector.RegisterMetric("New", &new_metric)
+	newMetric := 1
+
+	err = collector.RegisterMetric("New", &newMetric)
 	if err == nil {
 		t.Errorf("error")
 	}

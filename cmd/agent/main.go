@@ -1,15 +1,23 @@
 package main
 
 import (
-	"internal/metric"
+	"context"
+	"gometric/internal/metric"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	//Run metric collector with pollInterval 2 sec
-	m := metric.RunCollector(2)
+	m := metric.RunCollector(ctx, 2)
 
 	collector := metric.Collector{
-		Endpoint:          "http://127.0.0.1:8080/update",
+		Endpoint:          "http://127.0.0.1:8081/update",
 		ReportIntervalSec: 10,
 	}
 
@@ -45,5 +53,13 @@ func main() {
 	collector.RegisterMetric("RandomValue", &(m.RandomValue))
 
 	//send metrics
-	collector.SendMetric()
+	go collector.SendMetric(ctx)
+	log.Print("Agent started")
+
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
+
+	<-sigint
+
+	log.Print("Agent stopped")
 }

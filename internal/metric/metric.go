@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"context"
 	"math/rand"
 	"runtime"
 	"time"
@@ -76,25 +77,22 @@ func (m *MemStats) ReadMemStats() {
 	m.RandomValue = gauge(rand.Float64())
 }
 
-func RunCollector(pollInterval int) *MemStats {
-	var m *MemStats
-	var c chan *MemStats = make(chan *MemStats)
-
-	go RunCollectorHandler(c, pollInterval)
-	m = <-c
-
-	return m
-}
-
-func RunCollectorHandler(c chan *MemStats, pollInterval int) {
-	var interval = time.Duration(pollInterval) * time.Second
+func RunCollector(ctx context.Context, pollInterval int) *MemStats {
 	var m MemStats
 
-	c <- &m
-	close(c)
+	go func(ctx context.Context, m *MemStats, pollInterval int) {
+		var interval = time.Duration(pollInterval) * time.Second
 
-	for {
-		m.ReadMemStats()
-		<-time.After(interval)
-	}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				m.ReadMemStats()
+				<-time.After(interval)
+			}
+		}
+	}(ctx, &m, pollInterval)
+
+	return &m
 }
