@@ -3,10 +3,11 @@ package storage
 import (
 	"gometric/internal/memstorage"
 	"gometric/internal/postgres"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Storage interface {
-	Open() error
 	Close() error
 	Set(k string, v interface{}) error
 	MSet(data map[string]interface{}) error
@@ -14,14 +15,18 @@ type Storage interface {
 	List() []string
 }
 
-func NewMemStorage(storeFile string, syncMode bool) *memstorage.MemStorage {
+func NewMemStorage(storeFile string, syncMode bool) (*memstorage.MemStorage, error) {
 	m := memstorage.NewMemStorage()
-	m.SetStoreFile(storeFile)
-	m.SetSyncMode(syncMode)
+	m.StoreFile = storeFile
+	m.SyncMode = syncMode
+	err := m.Open()
+	if err != nil {
+		return nil, err
+	}
 
-	return m
+	return m, nil
 }
 
-func NewPostgresDB(dsn string) *postgres.Postgres {
-	return postgres.NewPostgresDB(dsn)
+func NewPostgresDB(db *pgxpool.Pool) *postgres.Postgres {
+	return postgres.NewPostgresDB(db)
 }

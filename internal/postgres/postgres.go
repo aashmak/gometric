@@ -10,31 +10,13 @@ import (
 )
 
 type Postgres struct {
-	DSN string
-	DB  *pgxpool.Pool
+	DB *pgxpool.Pool
 }
 
-func NewPostgresDB(dsn string) *Postgres {
-	var db *pgxpool.Pool
-
+func NewPostgresDB(db *pgxpool.Pool) *Postgres {
 	return &Postgres{
-		DSN: dsn,
-		DB:  db,
+		DB: db,
 	}
-}
-
-func (p *Postgres) Open() error {
-	poolConfig, err := pgxpool.ParseConfig(p.DSN)
-	if err != nil {
-		return fmt.Errorf("unable to parse DatabaseDSN: %v", err)
-	}
-
-	p.DB, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
-	if err != nil {
-		return fmt.Errorf("unable to create connection pool: %v", err)
-	}
-
-	return nil
 }
 
 func (p *Postgres) InitDB() error {
@@ -61,15 +43,17 @@ func (p *Postgres) Set(k string, v interface{}) error {
 		return fmt.Errorf("invalid value")
 	}
 
-	var column, queryStr string
-	vtype := fmt.Sprintf("%T", v)
+	var vtype, column, queryStr string
 
-	switch vtype {
-	case "float64":
+	switch v.(type) {
+	case float64:
+		vtype = "float64"
 		column = "value"
-	case "int":
+	case int:
+		vtype = "int"
 		column = "delta"
-	case "int64":
+	case int64:
+		vtype = "int64"
 		column = "delta"
 	default:
 		return fmt.Errorf("invalid type value")
@@ -100,15 +84,17 @@ func (p *Postgres) MSet(data map[string]interface{}) error {
 	defer tx.Rollback(ctx)
 
 	for k, v := range data {
-		var column, queryStr string
-		vtype := fmt.Sprintf("%T", v)
+		var vtype, column, queryStr string
 
-		switch vtype {
-		case "float64":
+		switch v.(type) {
+		case float64:
+			vtype = "float64"
 			column = "value"
-		case "int":
+		case int:
+			vtype = "int"
 			column = "delta"
-		case "int64":
+		case int64:
+			vtype = "int64"
 			column = "delta"
 		default:
 			return fmt.Errorf("invalid type value")

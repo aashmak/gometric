@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"gometric/internal/agent"
+	"gometric/internal/logger"
 	"log"
 	"os"
 	"os/signal"
@@ -19,6 +19,8 @@ type Config struct {
 	ReportInterval int    `long:"report_interval" short:"r" env:"REPORT_INTERVAL" default:"10" description:"set report interval"`
 	PollInterval   int    `long:"poll_interval" short:"p" env:"POLL_INTERVAL" default:"2" description:"set poll interval"`
 	KeySign        string `long:"key" short:"k" env:"KEY" description:"set key for signing"`
+	LogLevel       string `long:"log_level" env:"LOG_LEVEL" default:"info" description:"set log level"`
+	LogFile        string `long:"log_file" env:"LOG_FILE" default:"" description:"set log file"`
 }
 
 func main() {
@@ -30,7 +32,7 @@ func main() {
 
 		if errors.As(err, &e) {
 			if e.Type == flags.ErrHelp {
-				fmt.Printf("%s", e.Message)
+				log.Printf("%s", e.Message)
 				os.Exit(0)
 			}
 		}
@@ -42,6 +44,9 @@ func main() {
 	if err := env.Parse(&cfg); err != nil {
 		log.Fatalf("error parse env variables:%+v\n", err)
 	}
+
+	logger.NewLogger(cfg.LogLevel, cfg.LogFile)
+	defer logger.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -88,12 +93,12 @@ func main() {
 
 	//send metrics
 	go collector.SendMetric(ctx)
-	log.Print("Agent started")
+	logger.Info("Agent started")
 
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
 
 	<-sigint
 
-	log.Print("Agent stopped")
+	logger.Info("Agent stopped")
 }

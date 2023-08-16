@@ -85,7 +85,6 @@ func TestGetSign(t *testing.T) {
 			}
 
 			if hex.EncodeToString(sign) != tt.hash {
-				fmt.Printf("%v\n", hex.EncodeToString(sign))
 				t.Errorf("Error: hash is not valid")
 			}
 		})

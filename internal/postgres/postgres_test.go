@@ -1,15 +1,29 @@
 package postgres
 
 import (
+	"context"
 	"reflect"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestPostgresDB(t *testing.T) {
+	var db *pgxpool.Pool
 	var err error
+
 	dsn := "postgresql://postgres:postgres@postgres:5432/praktikum"
-	pg := NewPostgresDB(dsn)
-	pg.Open()
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+
+	db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+
+	pg := NewPostgresDB(db)
 	pg.InitDB()
 	pg.Clear()
 	defer pg.DB.Close()
@@ -52,10 +66,21 @@ func TestPostgresDB(t *testing.T) {
 }
 
 func TestPostgresDB_Tx(t *testing.T) {
+	var db *pgxpool.Pool
 	var err error
+
 	dsn := "postgresql://postgres:postgres@postgres:5432/praktikum"
-	pg := NewPostgresDB(dsn)
-	pg.Open()
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+
+	db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+
+	pg := NewPostgresDB(db)
 	pg.InitDB()
 	pg.Clear()
 	defer pg.DB.Close()
