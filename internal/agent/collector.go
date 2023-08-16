@@ -150,6 +150,7 @@ func MakeRequest(ctx context.Context, client *http.Client, url string, pubKey *r
 	request.Header.Add("Content-Type", "application/json")
 	request.Header.Set("Content-Encoding", "gzip")
 	request.Header.Set("Accept-Encoding", "gzip")
+	request.Header.Add("X-Real-IP", "10.0.0.10")
 
 	if pubKey != nil {
 		request.Header.Add("Content-Encrypt", "rsa")

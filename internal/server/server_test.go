@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -15,6 +16,23 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
+
+func httpRequestRealIP(ts *httptest.Server, method, path string, body []byte, realIP string) (int, string) {
+	req, _ := http.NewRequest(method, ts.URL+path, bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	if realIP != "" {
+		req.Header.Add("X-Real-IP", realIP)
+	}
+
+	resp, _ := http.DefaultClient.Do(req)
+	respBody, _ := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+
+	fmt.Printf("status: %d %s body: %s\n", resp.StatusCode, resp.Status, string(respBody))
+
+	return resp.StatusCode, string(respBody)
+}
 
 func httpRequest(ts *httptest.Server, method, path string, body []byte) (int, string) {
 	req, _ := http.NewRequest(method, ts.URL+path, bytes.NewBuffer(body))
@@ -90,21 +108,32 @@ func TestContentEncodingContains(t *testing.T) {
 
 func NewTestServer(ctx context.Context, cfg *Config) *HTTPServer {
 	s := NewServer(ctx, cfg)
-	s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
+
+	s.chiRouter.Use(middleware.RealIP)
+	s.chiRouter.Use(s.decryptRSABodyHandler)
 	s.chiRouter.Use(unzipBodyHandler)
 	s.chiRouter.Get("/", s.listHandler)
 	s.chiRouter.Post("/", s.defaultHandler)
 	s.chiRouter.Route("/", func(r chi.Router) {
+		r.Use(s.trustedSubnetHandler)
 		r.Use(middleware.AllowContentType("application/json"))
 		r.Post("/value/", s.GetValueHandler)
 		r.Post("/update/", s.UpdateHandler)
 		r.Post("/updates/", s.UpdatesHandler)
 	})
 
-	//s.chiRouter.Post("/value/", s.GetValueHandler)
-	//s.chiRouter.Post("/update/", s.UpdateHandler)
-	//s.chiRouter.Post("/updates/", s.UpdatesHandler)
-	//s.chiRouter.Route("/value/")
+	/*
+		s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
+		s.chiRouter.Use(unzipBodyHandler)
+		s.chiRouter.Get("/", s.listHandler)
+		s.chiRouter.Post("/", s.defaultHandler)
+		s.chiRouter.Route("/", func(r chi.Router) {
+			r.Use(middleware.AllowContentType("application/json"))
+			r.Post("/value/", s.GetValueHandler)
+			r.Post("/update/", s.UpdateHandler)
+			r.Post("/updates/", s.UpdatesHandler)
+		})
+	*/
 
 	return s
 }
@@ -470,6 +499,96 @@ func TestHTTPServerHash(t *testing.T) {
 
 			if tt.action == "value" {
 				statusCode, body := httpRequest(ts, "POST", "/value/", tt.requestBody)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
+		})
+	}
+}
+
+// test server with X-Real-IP
+func TestHTTPServerRealIP(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := DefaultConfig()
+	cfg.TrustedSubnet = "192.168.0.0/24"
+
+	s := NewTestServer(ctx, cfg)
+
+	ts := httptest.NewServer(s.chiRouter)
+	defer ts.Close()
+
+	tests := []struct {
+		name               string
+		action             string
+		requestBody        []byte
+		realIP             string
+		responseStatusCode int
+		responseBody       string
+	}{
+		{
+			name:               "update gauge from empty x-real-ip #1",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","value":1907608}`),
+			realIP:             "",
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update gauge from not trusted ip #2",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","value":1907608}`),
+			realIP:             "192.168.1.1",
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "update gauge from trusted ip #3",
+			action:             "update",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge","value":1907608}`),
+			realIP:             "192.168.0.1",
+			responseStatusCode: http.StatusOK,
+			responseBody:       "",
+		},
+		{
+			name:               "get value gauge from empty x-real-ip #1",
+			action:             "value",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge"}`),
+			realIP:             "",
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "get value gauge from not trusted ip #2",
+			action:             "value",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge"}`),
+			realIP:             "192.168.1.1",
+			responseStatusCode: http.StatusForbidden,
+			responseBody:       "",
+		},
+		{
+			name:               "get value gauge from trusted ip #2",
+			action:             "value",
+			requestBody:        []byte(`{"id":"Alloc","type":"gauge"}`),
+			realIP:             "192.168.0.1",
+			responseStatusCode: http.StatusOK,
+			responseBody:       `{"id":"Alloc","type":"gauge","value":1907608}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.action == "update" {
+				statusCode, body := httpRequestRealIP(ts, "POST", "/update/", tt.requestBody, tt.realIP)
+				if statusCode != tt.responseStatusCode || body != tt.responseBody {
+					t.Errorf("Error")
+				}
+			}
+
+			if tt.action == "value" {
+				statusCode, body := httpRequestRealIP(ts, "POST", "/value/", tt.requestBody, tt.realIP)
 				if statusCode != tt.responseStatusCode || body != tt.responseBody {
 					t.Errorf("Error")
 				}
