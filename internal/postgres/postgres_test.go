@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"reflect"
 	"testing"
 
@@ -135,4 +137,50 @@ func TestPostgresDB_Tx(t *testing.T) {
 	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Error: value is incorrect")
 	}
+}
+
+func Example() {
+	var db *pgxpool.Pool
+	var err error
+
+	dsn := "postgresql://postgres:postgres@postgres:5432/praktikum"
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		log.Fatal("parse config error")
+	}
+
+	db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
+	if err != nil {
+		log.Fatal("create new pool error")
+	}
+
+	pg := NewPostgresDB(db)
+	pg.InitDB()
+	pg.Clear()
+	defer pg.DB.Close()
+
+	mdata := make(map[string]interface{})
+	mdata["abc"] = int(1)
+	mdata["def"] = float64(3.14)
+	mdata["xyz"] = float64(2.00)
+
+	pg.MSet(mdata)
+	pg.Set("abc", int(2))
+
+	if v, err := pg.Get("abc"); err == nil {
+		fmt.Printf("%d\n", v)
+	}
+
+	if v, err := pg.Get("def"); err == nil {
+		fmt.Printf("%.2f\n", v)
+	}
+
+	if v, err := pg.Get("xyz"); err == nil {
+		fmt.Printf("%.2f\n", v)
+	}
+
+	// Output:
+	// 2
+	// 3.14
+	// 2.00
 }

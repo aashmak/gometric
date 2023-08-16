@@ -171,3 +171,28 @@ func TestSign(t *testing.T) {
 		})
 	}
 }
+
+func ExampleSign() {
+
+	message := []byte("test message")
+	key := []byte("secret")
+
+	hash, _ := Sign(message, key)
+	fmt.Printf("%s", hex.EncodeToString(hash))
+
+	// Output:
+	// 3bcebf43c85d20bba6e3b6ba278af1d2ba3ab0d57de271b0ad30b833e851c5a6
+}
+
+func ExampleMetrics_ValidMAC() {
+	m := Metrics{}
+	message := `{"id":"Alloc","type":"gauge","value":1907608,"hash":"eedda5f934b51f71d9255066a51e63a30567c14960c9c5922a8389adac649819"}`
+	key := []byte("secret")
+
+	json.Unmarshal([]byte(message), &m)
+
+	fmt.Printf("%t", m.ValidMAC(key))
+
+	// Output:
+	// true
+}

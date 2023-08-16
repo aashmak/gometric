@@ -1,3 +1,4 @@
+// Пакет memstorage предназначен организации key-value хранилища.
 package memstorage
 
 import (
@@ -9,6 +10,7 @@ import (
 	"sync"
 )
 
+// MemStorage описывает структуру.
 type MemStorage struct {
 	Mutex     sync.Mutex
 	StoreFile string
@@ -17,6 +19,7 @@ type MemStorage struct {
 	Metrics   map[string]interface{}
 }
 
+// NewMemStorage создает новую структуру.
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
 		StoreFile: "/tmp/memstorage.json",
@@ -25,6 +28,7 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
+// Open открывает файл для дальнейшего сохранения дампа.
 func (m *MemStorage) Open() error {
 	var err error
 
@@ -36,10 +40,12 @@ func (m *MemStorage) Open() error {
 	return nil
 }
 
+// Close закрывает файл.
 func (m *MemStorage) Close() error {
 	return m.File.Close()
 }
 
+// Set задает значение value для ключа key.
 func (m *MemStorage) Set(k string, v interface{}) error {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
@@ -60,6 +66,7 @@ func (m *MemStorage) Set(k string, v interface{}) error {
 	return nil
 }
 
+// MSet устанавливает несколько ключей одновременно, заменяяя существующие значения, аналогично SET.
 func (m *MemStorage) MSet(data map[string]interface{}) error {
 	//check valid data
 	for k, v := range data {
@@ -84,6 +91,7 @@ func (m *MemStorage) MSet(data map[string]interface{}) error {
 	return nil
 }
 
+// Get извлекает значение value для ключа key.
 func (m *MemStorage) Get(k string) (interface{}, error) {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
@@ -97,6 +105,7 @@ func (m *MemStorage) Get(k string) (interface{}, error) {
 	return m.Metrics[k], nil
 }
 
+// List выводит списко всех ключей.
 func (m *MemStorage) List() []string {
 	var s []string
 
@@ -111,6 +120,7 @@ func (m *MemStorage) List() []string {
 	return s
 }
 
+// SaveDump сохраняет текущую БД в json файл.
 func (m *MemStorage) SaveDump() error {
 
 	db, err := json.Marshal(m.Metrics)
@@ -126,6 +136,7 @@ func (m *MemStorage) SaveDump() error {
 	return nil
 }
 
+// LoadDump json файл в БД.
 func (m *MemStorage) LoadDump() (map[string]interface{}, error) {
 	dataTmp := make(map[string]interface{})
 

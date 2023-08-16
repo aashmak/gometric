@@ -1,3 +1,4 @@
+// Пакет server предназначен для организации http сервера с REST API для сбора метрик.
 package server
 
 import (
@@ -18,6 +19,7 @@ import (
 type gauge float64
 type counter int64
 
+// HTTPServer описывает структуру сервера.
 type HTTPServer struct {
 	Server    *http.Server
 	chiRouter chi.Router
@@ -25,6 +27,7 @@ type HTTPServer struct {
 	KeySign   []byte
 }
 
+// NewServer создает новый http сервер.
 func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 	httpserver := HTTPServer{
 		chiRouter: chi.NewRouter(),
@@ -74,7 +77,8 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 	return &httpserver
 }
 
-// restore MemStorageDB from file
+// Restore загрузка данных из файла в in-memory БД.
+// Используется только для бэкенда MemStorageDB.
 func (s HTTPServer) Restore() error {
 	data, err := s.Storage.(*memstorage.MemStorage).LoadDump()
 	if err != nil {
@@ -98,7 +102,8 @@ func (s HTTPServer) Restore() error {
 	return nil
 }
 
-// save MemStorageDB to file
+// StoreHandler сохранение данных из in-memory БД в файл.
+// Используется только для бэкенда MemStorageDB.
 func (s HTTPServer) StoreHandler(ctx context.Context, storeInterval int) {
 	if storeInterval <= 0 {
 		return
@@ -123,6 +128,7 @@ func (s HTTPServer) StoreHandler(ctx context.Context, storeInterval int) {
 	}(ctx, storeInterval)
 }
 
+// ListenAndServe старт сервера
 func (s *HTTPServer) ListenAndServe(addr string) {
 
 	// middleware gzip response
@@ -149,6 +155,7 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 	}
 }
 
+// Shutdown завершение работы сервера
 func (s *HTTPServer) Shutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
