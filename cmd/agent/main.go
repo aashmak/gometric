@@ -7,18 +7,31 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/caarlos0/env/v7"
 )
 
+type Config struct {
+	EndpointAddr   string `env:"ADDRESS" envDefault:"127.0.0.1:8080"`
+	ReportInterval int    `env:"REPORT_INTERVAL" envDefault:"10"`
+	PollInterval   int    `env:"POLL_INTERVAL" envDefault:"2"`
+}
+
 func main() {
+	var cfg Config
+	if err := env.Parse(&cfg); err != nil {
+		log.Fatalf("Error parse environment:%+v", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	//Run metric collector with pollInterval 2 sec
-	m := metric.RunCollector(ctx, 2)
+	m := metric.RunCollector(ctx, cfg.PollInterval)
 
 	collector := metric.Collector{
-		Endpoint:          "http://127.0.0.1:8081/update/",
-		ReportIntervalSec: 10,
+		Endpoint:          "http://" + cfg.EndpointAddr + "/update/",
+		ReportIntervalSec: cfg.ReportInterval,
 	}
 
 	//prepare metrics for collector
