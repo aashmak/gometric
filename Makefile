@@ -1,0 +1,3 @@
+
+statictest:
+	go vet -vettool=$(shell which statictest) ./...

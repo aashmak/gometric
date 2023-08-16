@@ -1,20 +1,41 @@
 package memstorage
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"sync"
 )
 
 type MemStorage struct {
-	Mutex   sync.Mutex
-	Metrics map[string]interface{}
+	Mutex     sync.Mutex
+	StoreFile string
+	SyncMode  bool
+	Metrics   map[string]interface{}
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		Metrics: make(map[string]interface{}),
+		StoreFile: "/tmp/memstorage.json",
+		SyncMode:  false,
+		Metrics:   make(map[string]interface{}),
 	}
+}
+
+func (m *MemStorage) SetSyncMode(mode bool) {
+	m.SyncMode = mode
+}
+
+func (m *MemStorage) SetStoreFile(filename string) error {
+	if filename == "" {
+		return fmt.Errorf("filename is empty")
+	}
+
+	m.StoreFile = filename
+
+	return nil
 }
 
 func (m *MemStorage) Set(k string, v interface{}) error {
@@ -26,6 +47,13 @@ func (m *MemStorage) Set(k string, v interface{}) error {
 	}
 
 	m.Metrics[k] = v
+
+	if m.SyncMode {
+		err := m.SaveDump()
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -55,4 +83,41 @@ func (m *MemStorage) List() []string {
 
 	sort.Strings(s)
 	return s
+}
+
+func (m *MemStorage) SaveDump() error {
+	file, err := os.OpenFile(m.StoreFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	db, err := json.Marshal(m.Metrics)
+	if err != nil {
+		return err
+	}
+
+	file.Write(db)
+
+	return nil
+}
+
+func (m *MemStorage) LoadDump() (map[string]interface{}, error) {
+	dataTmp := make(map[string]interface{})
+
+	file, err := os.OpenFile(m.StoreFile, os.O_RDONLY, 0777)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	data, _ := reader.ReadBytes('\n')
+
+	err = json.Unmarshal(data, &dataTmp)
+	if err != nil {
+		return nil, err
+	}
+
+	return dataTmp, nil
 }

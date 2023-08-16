@@ -1,6 +1,8 @@
 package memstorage
 
 import (
+	"bufio"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -78,5 +80,66 @@ func TestStorage6(t *testing.T) {
 	err := memStor.Set("abc", nil)
 	if err == nil {
 		t.Errorf("Error: %s", err)
+	}
+}
+
+func TestSetStoreFile(t *testing.T) {
+	memStor := NewMemStorage()
+	err := memStor.SetStoreFile("")
+	if err == nil {
+		t.Errorf("Error: filename must not be empty")
+	}
+}
+
+func TestSetSyncMode(t *testing.T) {
+	memStor := NewMemStorage()
+
+	memStor.SetSyncMode(true)
+	if !memStor.SyncMode {
+		t.Errorf("Error: syn mode must be true")
+	}
+
+	memStor.SetSyncMode(false)
+	if memStor.SyncMode {
+		t.Errorf("Error: syn mode must be false")
+	}
+}
+
+func TestSaveLoadDump(t *testing.T) {
+	storeFile := "/tmp/test_storeFile.json"
+	memStor := NewMemStorage()
+	memStor.SetStoreFile(storeFile)
+
+	memStor.Set("a", int(1))
+	memStor.Set("b", float64(3.14))
+	memStor.Set("c", "foo")
+
+	err := memStor.SaveDump()
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+
+	file, err := os.OpenFile(storeFile, os.O_RDONLY, 0777)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+	defer file.Close()
+	defer os.Remove(storeFile)
+
+	reader := bufio.NewReader(file)
+	str, _ := reader.ReadBytes('\n')
+	strTest := []byte(`{"a":1,"b":3.14,"c":"foo"}`)
+	if !reflect.DeepEqual(str, strTest) {
+		t.Errorf("Error: %s", err)
+	}
+
+	//test load dump
+	dataTmp, err := memStor.LoadDump()
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+
+	if dataTmp["a"] != float64(1) || dataTmp["b"] != float64(3.14) || dataTmp["c"] != "foo" {
+		t.Errorf("Error: invalid data")
 	}
 }

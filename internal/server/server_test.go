@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +35,11 @@ func TestVariableType(t *testing.T) {
 }
 
 func TestChiRouter(t *testing.T) {
-	s := NewServer()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := DefaultConfig()
+	s := NewServer(ctx, cfg)
 	s.chiRouter.Route("/", func(router chi.Router) {
 		s.chiRouter.Get("/", s.listHandler)
 		s.chiRouter.Post("/", s.defaultHandler)
