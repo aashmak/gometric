@@ -72,7 +72,8 @@ func main() {
 	c := agent.CPUCollector(ctx, cfg.PollInterval)
 
 	collector := agent.Collector{
-		Endpoint:          "http://" + cfg.EndpointAddr + "/update/",
+		Endpoint:          cfg.EndpointAddr,
+		UseGrpc:           cfg.UseGrpc,
 		ReportIntervalSec: cfg.ReportInterval,
 		KeySign:           cfg.KeySign,
 		RateLimit:         cfg.RateLimit,

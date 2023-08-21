@@ -7,12 +7,15 @@ require (
 	github.com/caarlos0/env/v7 v7.1.0
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-critic/go-critic v0.8.1
+	github.com/golang/protobuf v1.5.3
 	github.com/jackc/pgx/v5 v5.4.2
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/rs/zerolog v1.29.1
 	github.com/securego/gosec/v2 v2.16.0
 	github.com/shirou/gopsutil/v3 v3.23.6
 	golang.org/x/tools v0.11.0
+	google.golang.org/grpc v1.57.0
+	google.golang.org/protobuf v1.31.0
 	honnef.co/go/tools v0.4.3
 )
 
@@ -40,10 +43,12 @@ require (
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
-	golang.org/x/crypto v0.9.0 // indirect
+	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20230213192124-5e25df0256eb // indirect
 	golang.org/x/mod v0.12.0 // indirect
+	golang.org/x/net v0.12.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/text v0.11.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
 )

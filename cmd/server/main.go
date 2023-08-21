@@ -68,7 +68,10 @@ func main() {
 	serv := server.NewServer(ctx, cfg)
 	go serv.ListenAndServe(cfg.ListenAddr)
 
-	logger.Info("Server started")
+	// enable grpc server
+	if cfg.ListenAddrGrpc != "" {
+		go serv.GrpcListenAndServe(cfg.ListenAddrGrpc)
+	}
 
 	<-sigint
 

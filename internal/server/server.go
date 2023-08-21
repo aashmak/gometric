@@ -17,21 +17,27 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"google.golang.org/grpc"
+
+	api "gometric/internal/api"
 )
 
 // HTTPServer описывает структуру сервера.
-type HTTPServer struct {
+type Server struct {
 	Server        *http.Server
 	chiRouter     chi.Router
+	GrpcServer    *grpc.Server
 	Storage       storage.Storage
 	KeySign       string
 	RSAPrivateKey *rsa.PrivateKey
 	TrustedSubnet *net.IPNet
+	api.UnimplementedGometricAPIServer
 }
 
 // NewServer создает новый http сервер.
-func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
-	httpserver := HTTPServer{
+func NewServer(ctx context.Context, cfg *Config) *Server {
+	serv := Server{
 		chiRouter: chi.NewRouter(),
 		KeySign:   cfg.KeySign,
 	}
@@ -41,12 +47,12 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 		if err != nil {
 			logger.Fatal("error parse subnet", err)
 		}
-		httpserver.TrustedSubnet = trustedSubnet
+		serv.TrustedSubnet = trustedSubnet
 	}
 
 	if cfg.RSAPrivateKey != "" {
 		var err error
-		httpserver.RSAPrivateKey, err = crypto.NewPrivateKey(cfg.RSAPrivateKey)
+		serv.RSAPrivateKey, err = crypto.NewPrivateKey(cfg.RSAPrivateKey)
 		if err != nil {
 			logger.Fatal("new private key failed", err)
 		}
@@ -66,8 +72,8 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 			logger.Fatal("unable to create connection pool", err)
 		}
 
-		httpserver.Storage = storage.NewPostgresDB(db)
-		err = httpserver.Storage.(*postgres.Postgres).InitDB()
+		serv.Storage = storage.NewPostgresDB(db)
+		err = serv.Storage.(*postgres.Postgres).InitDB()
 		if err != nil {
 			logger.Fatal("", err)
 		}
@@ -79,26 +85,26 @@ func NewServer(ctx context.Context, cfg *Config) *HTTPServer {
 		}
 
 		var err error
-		httpserver.Storage, err = storage.NewMemStorage(cfg.StoreFile, syncMode)
+		serv.Storage, err = storage.NewMemStorage(cfg.StoreFile, syncMode)
 		if err != nil {
 			logger.Fatal("new MemStorage", err)
 		}
 
-		httpserver.StoreHandler(ctx, cfg.StoreInterval)
+		serv.StoreHandler(ctx, cfg.StoreInterval)
 
 		if cfg.Restore {
-			if err := httpserver.Restore(); err != nil {
+			if err := serv.Restore(); err != nil {
 				logger.Error("restore MemStorage", err)
 			}
 		}
 	}
 
-	return &httpserver
+	return &serv
 }
 
 // Restore загрузка данных из файла в in-memory БД.
 // Используется только для бэкенда MemStorageDB.
-func (s HTTPServer) Restore() error {
+func (s Server) Restore() error {
 	data, err := s.Storage.(*memstorage.MemStorage).LoadDump()
 	if err != nil {
 		logger.Error("restore from json db", err)
@@ -123,7 +129,7 @@ func (s HTTPServer) Restore() error {
 
 // StoreHandler сохранение данных из in-memory БД в файл.
 // Используется только для бэкенда MemStorageDB.
-func (s HTTPServer) StoreHandler(ctx context.Context, storeInterval int) {
+func (s Server) StoreHandler(ctx context.Context, storeInterval int) {
 	if storeInterval <= 0 {
 		return
 	}
@@ -148,7 +154,7 @@ func (s HTTPServer) StoreHandler(ctx context.Context, storeInterval int) {
 }
 
 // ListenAndServe старт сервера
-func (s *HTTPServer) ListenAndServe(addr string) {
+func (s *Server) ListenAndServe(addr string) {
 
 	// middleware gzip response
 	// s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
@@ -178,13 +184,14 @@ func (s *HTTPServer) ListenAndServe(addr string) {
 		Handler: s.chiRouter,
 	}
 
+	logger.Info("Start HTTP server")
 	if err := s.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Fatal("", err)
 	}
 }
 
 // Shutdown завершение работы сервера
-func (s *HTTPServer) Shutdown() {
+func (s *Server) Shutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

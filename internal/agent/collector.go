@@ -16,10 +16,17 @@ import (
 	"gometric/internal/logger"
 
 	"gometric/internal/metrics"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+
+	api "gometric/internal/api"
 )
 
 type Collector struct {
 	Endpoint          string
+	UseGrpc           bool
 	ReportIntervalSec int
 	Metrics           []metrics.Metrics
 	KeySign           string
@@ -82,9 +89,19 @@ func (c *Collector) SendMetric(ctx context.Context, wg *sync.WaitGroup) {
 	for i := 0; i < c.RateLimit; i++ {
 		workerID := i + 1
 		wg.Add(1)
-		go func(ctx context.Context, wg *sync.WaitGroup, workerID int, client *http.Client, url string, pubKey *rsa.PublicKey, requestQueue <-chan *bytes.Buffer) {
+		go func() {
+			var err error
+
 			for request := range requestQueue {
-				err := MakeRequest(ctx, client, c.Endpoint, pubKey, request)
+				if c.UseGrpc {
+					// send to endpoint via the grpc protocol
+					err = MakeGrpcRequest(ctx, c.Endpoint, pubKey, request)
+				} else {
+					// send to endpoint via the http protocol
+					httpHost := "http://" + c.Endpoint + "/update/"
+					err = MakeRequest(ctx, client, httpHost, pubKey, request)
+				}
+
 				if err != nil {
 					logger.Error(fmt.Sprintf("[Worker #%d]", workerID), err)
 				} else {
@@ -92,7 +109,7 @@ func (c *Collector) SendMetric(ctx context.Context, wg *sync.WaitGroup) {
 				}
 			}
 			wg.Done()
-		}(ctx, wg, workerID, client, c.Endpoint, pubKey, requestQueue)
+		}()
 	}
 
 	for {
@@ -177,4 +194,50 @@ func MakeRequest(ctx context.Context, client *http.Client, url string, pubKey *r
 	}
 
 	return nil
+}
+
+func MakeGrpcRequest(ctx context.Context, host string, pubKey *rsa.PublicKey, body *bytes.Buffer) error {
+	var b bytes.Buffer
+
+	gzipWriter := gzip.NewWriter(&b)
+	_, err := gzipWriter.Write(body.Bytes())
+	if err != nil {
+		return fmt.Errorf("failed init compress writer: %v", err.Error())
+	}
+	gzipWriter.Close()
+
+	if pubKey != nil {
+		var enc []byte
+		enc, err = crypto.Encrypt(pubKey, &b)
+		if err != nil {
+			return fmt.Errorf("encrypt failed: %v", err.Error())
+		}
+
+		b = *bytes.NewBuffer(enc)
+	}
+
+	conn, err := grpc.Dial(host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	grpcClient := api.NewGometricAPIClient(conn)
+
+	md := metadata.New(map[string]string{
+		"content-encoding": "gzip",
+		"x-real-ip":        "10.0.0.10",
+	})
+
+	if pubKey != nil {
+		md.Append("content-encrypt", "rsa")
+	}
+
+	ctx2 := metadata.NewOutgoingContext(ctx, md)
+
+	_, err = grpcClient.UpdateMeticValue(ctx2, &api.Request{
+		Bytes: b.Bytes(),
+	})
+
+	return err
 }

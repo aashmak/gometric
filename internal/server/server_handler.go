@@ -16,12 +16,12 @@ import (
 )
 
 // defaultHandler стандарный handler, возвращает статус http.StatusForbidden.
-func (s HTTPServer) defaultHandler(w http.ResponseWriter, r *http.Request) {
+func (s Server) defaultHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 }
 
 // listHandler выводит все существующие метрики в виде html.
-func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
+func (s Server) listHandler(w http.ResponseWriter, r *http.Request) {
 	var varList string
 
 	for _, metricName := range s.Storage.List() {
@@ -45,7 +45,7 @@ func (s HTTPServer) listHandler(w http.ResponseWriter, r *http.Request) {
 
 // GetValueHandler извлекает метрики из key-value бэкенда и отсылает в формате json.
 // Функция также подписывает сообщение перед отправкой с помощью функции Sign().
-func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
+func (s Server) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		logger.Error("server could not read request body", err)
@@ -115,7 +115,7 @@ func (s HTTPServer) GetValueHandler(w http.ResponseWriter, r *http.Request) {
 
 // UpdateHandler принимает метрики в формате json и сохраняет в key-value бэкенд.
 // Функция также проверяет подпись с помощью ValidMAC().
-func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+func (s Server) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		logger.Error("server could not read request body", err)
@@ -165,7 +165,7 @@ func (s HTTPServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 }
 
-func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
+func (s Server) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		logger.Error("server could not read request body", err)
@@ -223,7 +223,7 @@ func (s HTTPServer) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 
 // trustedSubnetHandler проверяет, что переданный в заголовке запроса X-Real-IP, X-Forwarded-For IP-адрес агента
 // входит в доверенную подсеть, в противном случае возвращается статус ответа 403 Forbidden.
-func (s HTTPServer) trustedSubnetHandler(next http.Handler) http.Handler {
+func (s Server) trustedSubnetHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		realIP := r.RemoteAddr
 
@@ -266,7 +266,7 @@ func unzipBodyHandler(next http.Handler) http.Handler {
 }
 
 // decryptRSABodyHandler используется для расшифровки тела запроса с помощью RSA private-key.
-func (s HTTPServer) decryptRSABodyHandler(next http.Handler) http.Handler {
+func (s Server) decryptRSABodyHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentEncodingValues := r.Header.Values("Content-Encrypt")
 
@@ -297,7 +297,7 @@ func (s HTTPServer) decryptRSABodyHandler(next http.Handler) http.Handler {
 
 // pingHandler используется для проверки доступности БД.
 // Используется только с бэкендом Postgres.
-func (s HTTPServer) pingHandler(w http.ResponseWriter, r *http.Request) {
+func (s Server) pingHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.Storage.(*postgres.Postgres); ok {
 		if err := s.Storage.(*postgres.Postgres).Ping(); err == nil {
 			logger.Debug("database is reachable")
