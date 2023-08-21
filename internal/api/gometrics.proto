@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package apipb;
+
+option go_package = "gometric/internal/apipb;apipb";
+
+import "google/protobuf/empty.proto";
+
+message Request {
+  bytes bytes = 1;
+}
+
+message Response {
+  bytes bytes = 1;
+}
+
+service GometricAPI {
+  rpc UpdateMeticValue (Request) returns (google.protobuf.Empty) {}
+  rpc GetMeticValue (Request) returns (Response) {}
+}

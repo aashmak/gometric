@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -28,8 +27,6 @@ func httpRequestRealIP(ts *httptest.Server, method, path string, body []byte, re
 	resp, _ := http.DefaultClient.Do(req)
 	respBody, _ := io.ReadAll(resp.Body)
 	defer resp.Body.Close()
-
-	fmt.Printf("status: %d %s body: %s\n", resp.StatusCode, resp.Status, string(respBody))
 
 	return resp.StatusCode, string(respBody)
 }
@@ -106,7 +103,7 @@ func TestContentEncodingContains(t *testing.T) {
 	}
 }
 
-func NewTestServer(ctx context.Context, cfg *Config) *HTTPServer {
+func NewTestServer(ctx context.Context, cfg *Config) *Server {
 	s := NewServer(ctx, cfg)
 
 	s.chiRouter.Use(middleware.RealIP)
@@ -121,19 +118,6 @@ func NewTestServer(ctx context.Context, cfg *Config) *HTTPServer {
 		r.Post("/update/", s.UpdateHandler)
 		r.Post("/updates/", s.UpdatesHandler)
 	})
-
-	/*
-		s.chiRouter.Use(middleware.Compress(5, "text/html", "application/json"))
-		s.chiRouter.Use(unzipBodyHandler)
-		s.chiRouter.Get("/", s.listHandler)
-		s.chiRouter.Post("/", s.defaultHandler)
-		s.chiRouter.Route("/", func(r chi.Router) {
-			r.Use(middleware.AllowContentType("application/json"))
-			r.Post("/value/", s.GetValueHandler)
-			r.Post("/update/", s.UpdateHandler)
-			r.Post("/updates/", s.UpdatesHandler)
-		})
-	*/
 
 	return s
 }

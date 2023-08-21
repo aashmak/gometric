@@ -19,7 +19,11 @@ func NewPublicKey(file string) (*rsa.PublicKey, error) {
 		return nil, err
 	}
 
-	block, _ := pem.Decode(data)
+	return NewPublicKeyFromBytes(data)
+}
+
+func NewPublicKeyFromBytes(b []byte) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode(b)
 	publicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		return nil, err
@@ -34,7 +38,11 @@ func NewPrivateKey(file string) (*rsa.PrivateKey, error) {
 		return nil, err
 	}
 
-	block, _ := pem.Decode(data)
+	return NewPrivateKeyFromBytes(data)
+}
+
+func NewPrivateKeyFromBytes(b []byte) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode(b)
 	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
 		return nil, err
